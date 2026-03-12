@@ -1,0 +1,85 @@
+spring:
+  application:
+    name: booking-service
+  datasource:
+    url: jdbc:h2:file:./data/bookingdb;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 16
+    database-platform: org.hibernate.dialect.H2Dialect
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  # Event stream: Kafka (optional). If bootstrap-servers not set, in-process events are used.
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:}
+    consumer:
+      group-id: booking-service-pipeline
+      auto-offset-reset: earliest
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+server:
+  port: 8080
+  # Uncomment to bind to all interfaces (helps Android emulator at 10.0.2.2:8080 if connection refused)
+  # address: 0.0.0.0
+
+# Policy-driven configuration
+# Demo: 1 min = after that the trip is considered done, seat is released for others to book
+booking:
+  policy:
+    reservation-timeout-minutes: 1
+    max-seats-per-booking: 40
+    allowed-reservation-statuses-for-payment: RESERVED
+    allowed-payment-statuses-for-confirm: PAID
+  # Set to true to wipe DB and re-create 20 trains + 40 trips on next startup (then set back to false)
+  data:
+    reset-on-startup: true
+  admin:
+    # Simple shared secret for admin API (change in real use)
+    secret: admin123
+  # Refund: user can request refund within this many minutes after payment
+  refund:
+    request-window-minutes: 3
+  # Hallam Line (Leeds → Sheffield) station order for ticket coverage
+  route:
+    station-order:
+      - Leeds
+      - Woodlesford
+      - Castleford
+      - Normanton
+      - Wakefield Kirkgate
+      - Darton
+      - Barnsley
+      - Wombwell
+      - Elsecar
+      - Chapeltown
+      - Meadowhall Interchange
+      - Sheffield
+  # Fare evasion: 1-hour window to resolve (buy/upload ticket) before penalty is applied
+  fare-evasion:
+    resolution-window-minutes: 1
+    default-penalty-amount: 80
+    process-interval-ms: 300000  # 5 min: check for overdue PENDING_RESOLUTION and apply penalty
+
+# Payment gateway (Stripe: Visa, Apple Pay). Server-side verification via webhooks only.
+# Get a test key: https://dashboard.stripe.com/test/apikeys (use "Secret key" sk_test_...)
+# Set here, or run: export STRIPE_API_KEY=sk_test_xxx
+stripe:
+  api-key: ${STRIPE_API_KEY:}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+  # If true, "Visa / Apple Pay" works without a real key (simulates success for local testing)
+  demo-mode: ${STRIPE_DEMO_MODE:true}
+
+# Ticket: user downloads PDF from Tickets tab (GET /api/reservations/{id}/ticket.pdf).

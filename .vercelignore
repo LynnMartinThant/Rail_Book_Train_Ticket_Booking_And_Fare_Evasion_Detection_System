@@ -1,0 +1,14 @@
+# Backend (not used on Vercel; deploy separately)
+booking-service
+pom.xml
+
+# Android/iOS native projects
+android
+ios
+
+# Local / IDE
+.idea
+*.iml
+.env.local
+.env.development.local
+.env.test.local

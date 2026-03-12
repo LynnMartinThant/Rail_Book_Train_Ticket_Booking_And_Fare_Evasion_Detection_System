@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&display=swap');
+
+/* Safe area for mobile app wrapper (notch, home indicator) */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+html {
+  /* Prevent overscroll / rubber-band on iOS */
+  overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+  font-family: 'Roboto', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f5f5f5;
+  color: #111;
+  /* Safe area padding so content is not under notch or home indicator */
+  padding-top: var(--sat);
+  padding-bottom: var(--sab);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  /* Prevent layout thrash when viewport changes (e.g. Chrome device toolbar) */
+  overflow-x: hidden;
+  min-width: 0;
+}
+
+#root {
+  min-height: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.safe-area-pb {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 0px);
+}
