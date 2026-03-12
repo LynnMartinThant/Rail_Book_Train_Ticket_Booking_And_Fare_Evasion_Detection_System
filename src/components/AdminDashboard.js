@@ -158,6 +158,7 @@ function AdminDashboard({ secret, onLogout }) {
     }
   }, [section, secret, loadGeofenceMonitor]);
 
+  /* eslint-disable no-unused-vars -- kept for "Send notification" from user list */
   const handleSendNotification = async (userId, message) => {
     if (!secret) return;
     try {
@@ -168,6 +169,7 @@ function AdminDashboard({ secret, onLogout }) {
       setError(e.message);
     }
   };
+  /* eslint-enable no-unused-vars */
 
   const handleSimulateNoTicket = async (e) => {
     e.preventDefault();
