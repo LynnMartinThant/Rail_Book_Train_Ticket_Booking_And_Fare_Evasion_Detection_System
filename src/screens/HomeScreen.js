@@ -15,7 +15,7 @@ function formatTime(iso) {
 }
 
 function HomeScreen(props) {
-  const { user, alerts, pendingStationEntryActions, bookings, segments, currentStation, departures, onBuyTicket, onViewJourney, onDismissAlert, onRefreshStation, onEnableLocation } = props;
+  const { user, alerts, pendingStationEntryActions, bookings, segments, currentStation, departures, onBuyTicket, onViewJourney, onRefreshStation, onEnableLocation } = props;
   const unreadAlerts = alerts ? alerts.filter(function(a) { return !a.readAt; }) : [];
   const hasNoTicketWarning = unreadAlerts.length > 0 || (pendingStationEntryActions && pendingStationEntryActions.length > 0);
   const latestAlert = unreadAlerts[0] || (alerts && alerts[0]);
