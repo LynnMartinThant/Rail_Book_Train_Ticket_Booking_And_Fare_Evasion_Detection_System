@@ -90,21 +90,6 @@ const STATIONS_BY_LINE = [
   },
 ];
 
-/** Unique station options for dropdowns: value and label (first occurrence wins). */
-const ALL_STATIONS = (() => {
-  const seen = new Set();
-  const out = [];
-  STATIONS_BY_LINE.forEach(({ stations }) => {
-    stations.forEach((s) => {
-      if (!seen.has(s.value)) {
-        seen.add(s.value);
-        out.push(s);
-      }
-    });
-  });
-  return out.sort((a, b) => a.label.localeCompare(b.label));
-})();
-
 function formatTime(iso) {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
@@ -135,7 +120,7 @@ function TripList({ trips, loading, onSelectTrip, onCancel, fromStation, toStati
     if (onFromToChange) onFromToChange(fromStation, v);
   };
 
-  // When trips load, if selected date has no trips, switch to a date that has trips
+  // When trips load, if selected date has no trips, switch to a date that has trips (only when trips change)
   useEffect(() => {
     if (!trips?.length) return;
     const byDate = {};
@@ -148,6 +133,8 @@ function TripList({ trips, loading, onSelectTrip, onCancel, fromStation, toStati
       const bestDate = Object.entries(byDate).sort((a, b) => b[1] - a[1])[0]?.[0];
       if (bestDate) setSelectedDateKey(bestDate);
     }
+  // Intentionally omit selectedDateKey so we only run when trips change and don't override user's date pick
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trips]);
 
   const dateOptions = useMemo(() => {
