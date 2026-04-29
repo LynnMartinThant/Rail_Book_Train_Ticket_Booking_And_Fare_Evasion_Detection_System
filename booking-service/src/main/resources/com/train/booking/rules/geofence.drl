@@ -1,0 +1,11 @@
+package com.train.booking.rules
+
+import com.train.booking.rules.GeofenceRuleFacts.*
+
+rule "No ticket on station entry - offer options"
+  when
+    $entry : UserEnteredStation($userId : userId, $station : stationName, $geofenceId : geofenceId)
+    TicketSearchResult(userId == $userId, stationName == $station, hasTicket == false)
+  then
+    insert(new NoTicketAtEntry($userId, $station, $geofenceId));
+end

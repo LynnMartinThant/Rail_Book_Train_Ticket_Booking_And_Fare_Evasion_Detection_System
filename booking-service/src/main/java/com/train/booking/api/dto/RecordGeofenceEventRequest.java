@@ -11,4 +11,6 @@ public class RecordGeofenceEventRequest {
     private Long geofenceId;
     @NotNull(message = "eventType is required (ENTERED or EXITED)")
     private String eventType; // ENTERED, EXITED
+    /** Optional: links this station event to ingestion ({@code LocationReported}) and downstream policy traces. */
+    private String correlationId;
 }

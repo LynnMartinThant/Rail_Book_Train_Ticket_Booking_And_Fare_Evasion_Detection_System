@@ -1,10 +1,10 @@
 import React from 'react';
 
 const TABS = [
-  { id: 'home', label: 'Home', icon: '🏠' },
-  { id: 'journey', label: 'Journey', icon: '🚂' },
-  { id: 'tickets', label: 'Tickets', icon: '🎫' },
-  { id: 'profile', label: 'Profile', icon: '👤' },
+  { id: 'home', label: 'Home', icon: 'H' },
+  { id: 'journey', label: 'Journey', icon: 'J' },
+  { id: 'process', label: 'Process', icon: 'P' },
+  { id: 'profile', label: 'Profile', icon: 'U' },
 ];
 
 function TabBar({ activeTab, onSelect }) {

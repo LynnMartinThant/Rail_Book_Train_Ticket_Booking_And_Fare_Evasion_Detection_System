@@ -23,4 +23,7 @@ public class ReservationDto {
     private List<SeatDto> seats;
     private TripDto trip;
     private String userId;
+    /** Journey segment when different from trip (e.g. Meadowhall → Sheffield on a Leeds → Sheffield train). */
+    private String journeyFromStation;
+    private String journeyToStation;
 }

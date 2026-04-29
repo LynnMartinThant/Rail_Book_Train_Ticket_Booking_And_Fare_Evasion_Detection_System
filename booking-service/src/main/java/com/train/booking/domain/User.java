@@ -6,10 +6,10 @@ import lombok.*;
 import java.time.Instant;
 
 @Entity
-@Table(name = "users", indexes = @Index(unique = true, name = "idx_user_email", columnList = "email"))
+@Table(name = "users", indexes = @Index(unique = true, name = "idx_user_email", columnList = "email")) // Table in Db
 @Getter
-@Setter
-@NoArgsConstructor
+@Setter 
+@NoArgsConstructor  // Lombok for constructir
 @AllArgsConstructor
 @Builder
 public class User {
@@ -17,7 +17,7 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(insertable = false, updatable = false)
-    private Long id;
+    private Long id; //PK
 
     @Column(nullable = false, unique = true)
     private String email;

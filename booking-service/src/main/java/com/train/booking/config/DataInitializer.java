@@ -150,6 +150,9 @@ public class DataInitializer implements CommandLineRunner {
                     tripSeatRepository.save(TripSeat.builder().trip(trip).seat(seat).build());
                 }
             }
+            for (Trip trip : newTrips) {
+                addFareBucketsForTrip(trip);
+            }
             trainOffset += numTrains;
         }
         if (tripSeatRepository.count() == 0) {
@@ -163,6 +166,34 @@ public class DataInitializer implements CommandLineRunner {
                 }
             }
         }
+        // Ensure all existing trips have fare buckets for dynamic pricing (Drools)
+        List<Trip> allTrips = tripRepository.findAllWithTrain();
+        for (Trip trip : allTrips) {
+            if (fareBucketRepository.findByTripIdOrderByDisplayOrderAsc(trip.getId()).isEmpty()) {
+                addFareBucketsForTrip(trip);
+            }
+        }
         log.info("Data init done: {} trains, {} trips (all lines)", trainRepository.count(), tripRepository.count());
+    }
+
+    /**
+     * Add four fare tiers so Drools dynamic pricing can apply: ADVANCE_1 (cheapest, limited),
+     * ADVANCE_2, OFF_PEAK (disabled in peak hours by rule), ANYTIME (always available).
+     */
+    private void addFareBucketsForTrip(Trip trip) {
+        java.math.BigDecimal base = trip.getPricePerSeat();
+        if (base == null) base = java.math.BigDecimal.valueOf(10);
+        fareBucketRepository.save(FareBucket.builder().trip(trip).tierName("ADVANCE_1")
+            .price(base.multiply(java.math.BigDecimal.valueOf(0.5)).setScale(2, java.math.RoundingMode.HALF_UP))
+            .seatsAllocated(5).displayOrder(0).build());
+        fareBucketRepository.save(FareBucket.builder().trip(trip).tierName("ADVANCE_2")
+            .price(base.multiply(java.math.BigDecimal.valueOf(0.75)).setScale(2, java.math.RoundingMode.HALF_UP))
+            .seatsAllocated(8).displayOrder(1).build());
+        fareBucketRepository.save(FareBucket.builder().trip(trip).tierName("OFF_PEAK")
+            .price(base.multiply(java.math.BigDecimal.valueOf(0.9)).setScale(2, java.math.RoundingMode.HALF_UP))
+            .seatsAllocated(-1).displayOrder(2).build());
+        fareBucketRepository.save(FareBucket.builder().trip(trip).tierName("ANYTIME")
+            .price(base.setScale(2, java.math.RoundingMode.HALF_UP))
+            .seatsAllocated(-1).displayOrder(3).build());
     }
 }

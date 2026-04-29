@@ -31,7 +31,7 @@ public class Trip {
     @Column(nullable = false)
     private Instant departureTime;
 
-    /** Platform at fromStation (e.g. 1A, 2B). Five main platforms, each with A and B: 1A–5B. */
+    // Platform at fromStation (e.g. 1A, 2B).
     @Column(length = 4)
     private String platform;
 

@@ -56,6 +56,14 @@ public class Reservation {
     @Column(name = "currency", length = 3)
     private String currency;
 
+    /** Journey origin when booking a segment (e.g. Meadowhall). When set, ticket and QR validation use this instead of trip.fromStation. */
+    @Column(name = "journey_from_station", length = 128)
+    private String journeyFromStation;
+
+    /** Journey destination when booking a segment (e.g. Sheffield). When set, ticket displays this instead of trip.toStation. */
+    @Column(name = "journey_to_station", length = 128)
+    private String journeyToStation;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

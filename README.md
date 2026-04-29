@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # RailBook – Train Ticket Booking System
 
 Fully working train ticket booking with **double-booking prevention**, following the workflow:
@@ -67,6 +66,88 @@ The **React frontend** can be deployed on [Vercel](https://vercel.com) in a few 
 - `vercel.json` in this repo adds SPA rewrites so routes like `/admin` work when refreshed.
 - `.vercelignore` excludes `booking-service`, `android`, and `ios` to keep deploys fast.
 - If you haven’t deployed the backend yet, the live site will show “Booking service not reachable” until `REACT_APP_API_URL` points to a running API.
+
+**Works on localhost but not on Vercel?**
+
+| Check | What to do |
+|-------|------------|
+| **Backend URL** | In Vercel → **Settings** → **Environment Variables**, set `REACT_APP_API_URL` to your **deployed** backend URL (e.g. `https://your-app.railway.app/api`). Without this, the app calls `/api` on the Vercel domain, where there is no API. |
+| **Backend deployed?** | Deploy the Java backend (e.g. [Railway](https://railway.app), [Render](https://render.com)). The backend allows CORS from `https://*.vercel.app`, so your Vercel site can call it once the URL is set. |
+| **Redeploy after env change** | After adding or changing `REACT_APP_API_URL`, trigger a new deployment (Deployments → … → Redeploy) so the build picks up the variable. |
+
+## Deploy backend on Render
+
+Deploy the **booking-service** (Java/Spring Boot) on [Render](https://render.com) so your Vercel frontend can call it.
+
+1. **Push your repo to GitHub** (if not already).
+
+2. **Create a Web Service on Render**
+   - Go to [dashboard.render.com](https://dashboard.render.com) → **New** → **Web Service**.
+   - Connect your GitHub repo (the one that contains `booking-service`).
+
+3. **Configure the service**
+   - **Name:** e.g. `railbook-api` (or any name).
+   - **Region:** choose one close to you.
+   - **Root Directory:** set to **`booking-service`** (required — your repo root is the frontend).
+   - **Runtime:** **Java**.
+   - **Build Command:** `mvn clean package -DskipTests`
+   - **Start Command:** `java -jar target/booking-service-1.0.0.jar`
+   - **Instance type:** Free (or paid for always-on).
+
+4. **Environment (optional)**
+   - **PostgreSQL (recommended on Render):** Add a **PostgreSQL** database in Render (Dashboard → New → PostgreSQL), then in the **Web Service** → **Environment** add **`DATABASE_URL`** = the **Internal Database URL** from the PostgreSQL service (e.g. `postgresql://user:pass@host:5432/dbname`). The app will use the same schema and seed data (trains, trips, geofences) via JPA and `DataInitializer`. See [PostgreSQL (same data)](#postgresql-same-data) below.
+   - Without PostgreSQL, the app uses H2 file storage; on Render’s free tier the filesystem is ephemeral, so data can reset on deploy.
+   - You can set `BOOKING_DATA_RESET_ON_STARTUP` = `false` if you don’t want to re-seed data on every deploy.
+
+5. **Deploy**
+   - Click **Create Web Service**. Render will build and start the app.
+   - When it’s live, copy the service URL (e.g. `https://railbook-api.onrender.com`).
+
+6. **Point Vercel at the backend**
+   - In your Vercel project → **Settings** → **Environment Variables**.
+   - Set **`REACT_APP_API_URL`** = `https://your-render-service.onrender.com/api` (your Render URL + `/api`, no trailing slash).
+   - Redeploy the Vercel frontend.
+
+**Notes**
+
+- The backend reads **`PORT`** from the environment (Render sets it automatically); local default remains 8080.
+- First request on the free tier can be slow (service may spin down when idle). For production, use a paid instance or another host.
+
+## PostgreSQL (same data)
+
+The backend supports **PostgreSQL** with the same JPA entities and seed data (trains, trips, stations, geofences, fare buckets). No code changes are required.
+
+### On Render
+
+1. In the Render dashboard, create a **PostgreSQL** database (New → PostgreSQL).
+2. In your **Web Service** (booking-service) → **Environment**, add:
+   - **Key:** `DATABASE_URL`
+   - **Value:** the **Internal Database URL** from the PostgreSQL service (copy from the PostgreSQL service’s “Info” tab; format `postgresql://user:password@hostname:5432/database`).
+3. Redeploy the Web Service. The app will connect to PostgreSQL, run `ddl-auto: update` to create/update tables, and run the same `DataInitializer` and `FareBucketInitializer` / `GeofenceDataInitializer` so you get the same trains, trips, and data as with H2.
+
+### Local PostgreSQL
+
+1. Install and start PostgreSQL, create a database (e.g. `railbook`).
+2. Set `DATABASE_URL` and run the app, e.g.:
+
+   ```bash
+   export DATABASE_URL="postgresql://postgres:yourpassword@localhost:5432/railbook"
+   cd booking-service
+   mvn spring-boot:run
+   ```
+
+   Or set **`SPRING_DATASOURCE_URL`**, **`SPRING_DATASOURCE_USERNAME`**, **`SPRING_DATASOURCE_PASSWORD`** and activate the `postgres` profile:
+
+   ```bash
+   export SPRING_DATASOURCE_URL="jdbc:postgresql://localhost:5432/railbook"
+   export SPRING_DATASOURCE_USERNAME=postgres
+   export SPRING_DATASOURCE_PASSWORD=yourpassword
+   mvn spring-boot:run -Dspring-boot.run.profiles=postgres
+   ```
+
+3. With `booking.data.reset-on-startup: true` (default), the app will (re)create and seed the same data on startup.
+
+If `DATABASE_URL` is not set, the app uses **H2** (file-based) as before.
 
 ## Open and run in Android Studio
 
@@ -228,6 +309,29 @@ Client (Web/App) → Load Balancer (e.g. nginx) → Spring Boot Booking Service 
 
 All booking endpoints (except GET trips/seats) require header: `X-User-Id: <user-id>` (set by the app after login).
 
+**Geofence admin:** For polygon boundaries, platform segmentation, GPS noise filtering, event debouncing, ticket validation, false positive monitoring, calibration, and system health, see [docs/GEOFENCE-ADMIN.md](docs/GEOFENCE-ADMIN.md) (implementation and use-case scenarios).
+
+**Testing use cases in real life:** To test geofence-based journey reconstruction, automated fare evasion detection, and real-time passenger monitoring (with a real device or admin simulation), see [docs/TESTING-USE-CASES.md](docs/TESTING-USE-CASES.md).
+
+**Fraud Detection Engine & three engines:** Geofencing, Journey Reconstruction, and Fraud Rules (Drools), plus the Fraud Detection Engine (ticket sharing, refund fraud, multi-device, chargeback, suspicious account, system reliability), see [docs/FRAUD-AND-ENGINES.md](docs/FRAUD-AND-ENGINES.md).
+
+**Test strategy & test cases:** Combined unit, integration, system, acceptance, performance, security, regression, compatibility, and chaos test cases for the whole system: [docs/TEST-STRATEGY-AND-CASES.md](docs/TEST-STRATEGY-AND-CASES.md).
+
+### Verify Drools (pricing rules)
+
+To confirm the Drools pricing engine is working:
+
+1. **Admin endpoint** (backend must be running, use your admin secret):
+   ```bash
+   curl -s -H "X-Admin-Secret: YOUR_ADMIN_SECRET" http://localhost:8080/api/admin/drools-status
+   ```
+   - `{ "status": "ok", "message": "Pricing rules loaded and executed successfully." }` → Drools is working.
+   - `{ "status": "unavailable", "message": "..." }` → Check backend logs for Drools init/execution errors.
+
+2. **Logs**: When you search for trips (e.g. open the app and load the trip list), the backend logs **"Pricing via Drools: tripId=… tier=… price=…"** for each trip that used the rule engine. If you see **"Pricing Drools failed, using fallback"** or no "Pricing via Drools" lines, Drools init or execution failed (fallback pricing is still applied).
+
+3. **Trip list**: Trips returned by `GET /api/trips` include a `fareTier` (e.g. `ADVANCE_1`, `OFF_PEAK`, `ANYTIME`) when dynamic pricing is used; rules close tiers by occupancy, peak hours, and advance-window.
+
 ## Testing 3 users booking the same seat at once
 
 To verify double-booking prevention, run three reserve requests for the **same seat** at the same time. Only one should succeed; the others should get a conflict.
@@ -319,6 +423,3 @@ The same React app can be wrapped as a native app and built for App Store / Play
   Run with: `java -jar target/booking-service-1.0.0.jar`
 
 Use the same policy and DB settings (or switch to PostgreSQL) and put both behind your load balancer as described above.
-=======
-# Rail_Book_Train_Ticket_Booking_And_Fare_Evasion_Detection_System
->>>>>>> a6cb198aa64dfee469df7029e2d8d00ad147a53d

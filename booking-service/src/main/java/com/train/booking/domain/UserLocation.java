@@ -7,7 +7,7 @@ import java.time.Instant;
 
 /**
  * Latest reported location per user. Updated when the user (or their client) reports location.
- * Used to show live positions on admin and to detect geofence entry/exit.
+
  */
 @Entity
 @Table(name = "user_locations", indexes = @Index(name = "idx_user_location_user", columnList = "user_id"))

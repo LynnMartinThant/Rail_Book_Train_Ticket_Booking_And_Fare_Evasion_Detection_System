@@ -91,7 +91,10 @@ const STATIONS_BY_LINE = [
 ];
 
 function formatTime(iso) {
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  if (iso == null) return '--:--';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '--:--';
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function formatDateShort(d) {
@@ -99,9 +102,13 @@ function formatDateShort(d) {
 }
 
 function dayKey(iso) {
+  if (iso == null) return '';
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+const ACCENT = '#0d5c4c'; // dark teal to match "Choose Seat" layout
 
 function TripList({ trips, loading, onSelectTrip, onCancel, fromStation, toStation, onFromToChange }) {
   const [selectedDateKey, setSelectedDateKey] = useState(() => {
@@ -110,6 +117,7 @@ function TripList({ trips, loading, onSelectTrip, onCancel, fromStation, toStati
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
   });
   const [sortBy, setSortBy] = useState('earliest'); // 'earliest' | 'price' | 'duration'
+  const [selectedTrip, setSelectedTrip] = useState(null);
 
   const handleFromChange = (e) => {
     const v = e.target.value;
@@ -137,6 +145,23 @@ function TripList({ trips, loading, onSelectTrip, onCancel, fromStation, toStati
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trips]);
 
+  const filteredAndSortedTrips = useMemo(() => {
+    if (!trips?.length) return [];
+    const list = trips.filter((t) => dayKey(t.departureTime) === selectedDateKey);
+    const sorted = [...list].sort((a, b) => {
+      if (sortBy === 'earliest') return new Date(a.departureTime) - new Date(b.departureTime);
+      if (sortBy === 'price') return Number(a.pricePerSeat) - Number(b.pricePerSeat);
+      return 0; // duration same for all
+    });
+    return sorted;
+  }, [trips, selectedDateKey, sortBy]);
+
+  useEffect(() => {
+    if (selectedTrip && filteredAndSortedTrips.length > 0 && !filteredAndSortedTrips.some((t) => t.id === selectedTrip.id)) {
+      setSelectedTrip(null);
+    }
+  }, [filteredAndSortedTrips, selectedTrip]);
+
   const dateOptions = useMemo(() => {
     const out = [];
     const base = new Date();
@@ -152,21 +177,14 @@ function TripList({ trips, loading, onSelectTrip, onCancel, fromStation, toStati
     return out;
   }, []);
 
-  const filteredAndSortedTrips = useMemo(() => {
-    if (!trips?.length) return [];
-    const list = trips.filter((t) => dayKey(t.departureTime) === selectedDateKey);
-    const sorted = [...list].sort((a, b) => {
-      if (sortBy === 'earliest') return new Date(a.departureTime) - new Date(b.departureTime);
-      if (sortBy === 'price') return Number(a.pricePerSeat) - Number(b.pricePerSeat);
-      return 0; // duration same for all
-    });
-    return sorted;
-  }, [trips, selectedDateKey, sortBy]);
-
   const minPrice = useMemo(() => {
     if (!trips?.length) return null;
     return Math.min(...trips.map((t) => Number(t.pricePerSeat)));
   }, [trips]);
+
+  const handleNext = () => {
+    if (selectedTrip) onSelectTrip(selectedTrip);
+  };
 
   if (loading) {
     return (
@@ -176,189 +194,214 @@ function TripList({ trips, loading, onSelectTrip, onCancel, fromStation, toStati
     );
   }
 
+  const routeLabel = `${fromStation ?? 'From'} → ${toStation ?? 'To'}`;
+  const tripCount = filteredAndSortedTrips.length;
+
   return (
-    <div className="flex flex-col min-h-[80vh]">
-      {/* Header: dark blue, Trip.com style */}
-      <header className="bg-[#0d3b66] text-white px-4 pt-4 pb-3 -mx-4 -mt-6 mb-0">
-        <div className="flex items-center justify-between mb-3">
-          <span className="w-16 text-left">
-            {onCancel && (
-              <button type="button" onClick={onCancel} className="text-white/90 hover:text-white text-sm font-medium">Cancel</button>
-            )}
-          </span>
-          <span className="text-lg font-bold">RailBook</span>
-          <span className="w-16 text-right text-sm font-medium">GBP</span>
+    <div className="flex flex-col min-h-[80vh] bg-white">
+      {/* Header: back + title + accent line (Choose Seat style) */}
+      <header className="border-b border-slate-200 bg-white px-4 pt-4 pb-2">
+        <div className="flex items-center gap-3">
+          {onCancel && (
+            <button type="button" onClick={onCancel} className="p-1 -ml-1 text-slate-600 hover:text-slate-900" aria-label="Back">
+              <span className="text-xl leading-none">←</span>
+            </button>
+          )}
+          <h1 className="text-lg font-semibold text-slate-900">Select journey</h1>
         </div>
-        {/* Station picker: From / To (all lines) */}
-        <div className="grid grid-cols-2 gap-2 mt-2">
-          <div>
-            <label className="block text-xs text-white/70 mb-0.5">From</label>
-            <select
-              value={fromStation ?? 'Leeds'}
-              onChange={handleFromChange}
-              className="w-full rounded bg-white/15 text-white border border-white/30 px-2 py-1.5 text-sm focus:ring-2 focus:ring-white/50 focus:border-white"
-              aria-label="Departure station"
-            >
-              {STATIONS_BY_LINE.map((group) => (
-                <optgroup key={group.line} label={group.line}>
-                  {group.stations.map((s) => (
-                    <option key={s.value} value={s.value} className="text-slate-900">{s.label}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-white/70 mb-0.5">To</label>
-            <select
-              value={toStation ?? 'Sheffield'}
-              onChange={handleToChange}
-              className="w-full rounded bg-white/15 text-white border border-white/30 px-2 py-1.5 text-sm focus:ring-2 focus:ring-white/50 focus:border-white"
-              aria-label="Arrival station"
-            >
-              {STATIONS_BY_LINE.map((group) => (
-                <optgroup key={group.line} label={group.line}>
-                  {group.stations.map((s) => (
-                    <option key={s.value} value={s.value} className="text-slate-900">{s.label}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-        </div>
-        <p className="text-sm text-white/90 mt-2">{fromStation ?? 'From'} (Any) → {toStation ?? 'To'}</p>
-        <div className="flex gap-4 mt-3 border-b border-white/20 -mb-px">
-          <button type="button" className="pb-2 border-b-2 border-white font-medium text-sm flex items-center gap-1.5">
-            <span aria-hidden>🚂</span> Trains {minPrice != null && <span className="text-white/90">From £{minPrice.toFixed(2)}</span>}
-          </button>
-          <button type="button" className="pb-2 text-white/70 text-sm flex items-center gap-1.5">
-            <span aria-hidden>🚌</span> Coaches
-          </button>
-        </div>
+        <div className="h-0.5 w-24 rounded-full mt-2" style={{ backgroundColor: ACCENT }} aria-hidden />
       </header>
 
-      {/* Date strip */}
-      <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
+      {/* Route + count (like "Executive 4" / "36 left") */}
+      <div className="px-4 pt-5 pb-2">
+        <p className="text-xl font-bold text-slate-900">{routeLabel}</p>
+        <p className="text-sm text-slate-500 mt-0.5">{tripCount} {tripCount === 1 ? 'trip' : 'trips'} available</p>
+      </div>
+
+      {/* From / To dropdowns - compact */}
+      <div className="px-4 grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-xs text-slate-500 mb-0.5">From</label>
+          <select
+            value={fromStation ?? 'Leeds'}
+            onChange={handleFromChange}
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-offset-0 focus:border-slate-400"
+            aria-label="Departure station"
+            style={{ outlineColor: ACCENT }}
+          >
+            {STATIONS_BY_LINE.map((group) => (
+              <optgroup key={group.line} label={group.line}>
+                {group.stations.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-0.5">To</label>
+          <select
+            value={toStation ?? 'Sheffield'}
+            onChange={handleToChange}
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-offset-0 focus:border-slate-400"
+            aria-label="Arrival station"
+            style={{ outlineColor: ACCENT }}
+          >
+            {STATIONS_BY_LINE.map((group) => (
+              <optgroup key={group.line} label={group.line}>
+                {group.stations.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Legend + sort (like Not available / Available / Selected + 360 View) */}
+      <div className="px-4 mt-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3 text-xs text-slate-600">
+          <span className="flex items-center gap-1.5">
+            <span className="w-5 h-5 rounded border border-slate-300 bg-white" />
+            Available
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-5 h-5 rounded border-2 bg-slate-100" style={{ borderColor: ACCENT, backgroundColor: `${ACCENT}18` }} />
+            Selected
+          </span>
+        </div>
+        <div className="flex gap-1">
+          {['earliest', 'price', 'duration'].map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSortBy(key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium ${sortBy === key ? 'text-white' : 'text-slate-600 bg-slate-100 hover:bg-slate-200'}`}
+              style={sortBy === key ? { backgroundColor: ACCENT } : {}}
+            >
+              {key === 'earliest' ? 'Earliest' : key === 'price' ? 'Price' : 'Duration'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Date strip (car selector style - pills) */}
+      <div className="px-4 mt-3 flex gap-2 overflow-x-auto pb-2">
         {dateOptions.map((opt) => (
           <button
             key={opt.key}
             type="button"
-            onClick={() => setSelectedDateKey(opt.key)}
-            className={`shrink-0 px-4 py-2 rounded-lg text-sm font-medium ${
-              selectedDateKey === opt.key ? 'bg-[#0d3b66] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            onClick={() => { setSelectedDateKey(opt.key); setSelectedTrip(null); }}
+            className={`shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              selectedDateKey === opt.key ? 'text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
+            style={selectedDateKey === opt.key ? { backgroundColor: ACCENT } : {}}
           >
             {opt.label}
           </button>
         ))}
       </div>
 
-      {/* No booking fee + date row */}
-      <div className="mt-2 rounded-lg bg-pink-100 text-pink-800 px-3 py-2 text-sm font-medium">No booking fee</div>
-      <div className="flex items-center justify-between mt-3 text-sm text-slate-600">
-        <span>{dateOptions.find((d) => d.key === selectedDateKey)?.label ?? selectedDateKey} | 1</span>
-        <label className="flex items-center gap-2">
-          <span>Open return</span>
-          <input type="checkbox" className="rounded border-slate-300" />
-        </label>
-      </div>
-
-      {/* Earlier trains collapse */}
-      {filteredAndSortedTrips.length > 3 && (
-        <button type="button" className="mt-2 text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1">
-          Earlier trains <span className="text-xs">^</span>
-        </button>
-      )}
-
-      {/* Ticket cards */}
-      <div className="mt-4 space-y-3 flex-1">
+      {/* Trip list (seat grid style - cards) */}
+      <div className="px-4 mt-2 flex-1 space-y-2 pb-32">
         {!trips?.length ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-600">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-8 text-center text-slate-600">
             <p className="font-medium">No trips available.</p>
             <p className="mt-2 text-sm">
-              Start the backend: <code className="rounded bg-slate-100 px-1.5 py-0.5">cd booking-service &amp;&amp; mvn spring-boot:run</code>
-            </p>
-            <p className="mt-2 text-sm">
-              If it’s already running, reset data: set <code className="rounded bg-slate-100 px-1 py-0.5">booking.data.reset-on-startup: true</code> in <code className="rounded bg-slate-100 px-1 py-0.5">application.yml</code>, restart the backend, then set it back to <code className="rounded bg-slate-100 px-1 py-0.5">false</code>.
+              Start the backend: <code className="rounded bg-slate-200 px-1.5 py-0.5">cd booking-service &amp;&amp; mvn spring-boot:run</code>
             </p>
           </div>
         ) : filteredAndSortedTrips.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-slate-600">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-slate-600">
             <p className="font-medium">No trains on this date.</p>
             <p className="mt-1 text-sm">Try another date.</p>
           </div>
         ) : (
           filteredAndSortedTrips.map((trip) => (
-            <TripCard key={trip.id} trip={trip} onSelect={onSelectTrip} />
+            <TripCard
+              key={trip.id}
+              trip={trip}
+              segmentFrom={fromStation}
+              segmentTo={toStation}
+              selected={selectedTrip?.id === trip.id}
+              onSelect={() => setSelectedTrip(trip)}
+              accent={ACCENT}
+            />
           ))
         )}
       </div>
 
-      {/* Bottom sort bar */}
-      <div className="sticky bottom-0 mt-6 flex gap-2 justify-center border-t border-slate-200 bg-white py-3 -mx-4 px-4">
-        <button
-          type="button"
-          onClick={() => setSortBy('price')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 ${
-            sortBy === 'price' ? 'bg-[#0d3b66] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-          }`}
-        >
-          <span aria-hidden>📊</span> By price
-        </button>
-        <button
-          type="button"
-          onClick={() => setSortBy('earliest')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 ${
-            sortBy === 'earliest' ? 'bg-[#0d3b66] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-          }`}
-        >
-          <span aria-hidden>🕐</span> Earliest
-        </button>
-        <button
-          type="button"
-          onClick={() => setSortBy('duration')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 ${
-            sortBy === 'duration' ? 'bg-[#0d3b66] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-          }`}
-        >
-          <span aria-hidden>⏱</span> By duration
-        </button>
+      {/* Bottom bar: summary + NEXT (like Car Number / Seat Number + NEXT) */}
+      <div className="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white px-4 py-3 safe-area-pb">
+        <div className="mx-auto max-w-4xl flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-slate-600 min-w-0">
+            <p className="font-medium text-slate-900">Route: {routeLabel}</p>
+            <p className="text-slate-500 truncate">
+              {selectedTrip
+                ? `Departure: ${formatTime(selectedTrip?.departureTime)} · £${Number(selectedTrip?.pricePerSeat ?? 0).toFixed(2)}`
+                : 'Select a train'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={!selectedTrip}
+            className="shrink-0 rounded-xl px-6 py-3 font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-95 transition-opacity"
+            style={{ backgroundColor: selectedTrip ? ACCENT : '#94a3b8' }}
+          >
+            NEXT
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-function TripCard({ trip, onSelect }) {
+function TripCard({ trip, segmentFrom, segmentTo, selected, onSelect, accent }) {
+  if (!trip) return null;
   const dep = new Date(trip.departureTime);
-  const arr = new Date(dep.getTime() + DURATION_MINUTES * 60 * 1000);
+  const arr = Number.isNaN(dep.getTime()) ? dep : new Date(dep.getTime() + DURATION_MINUTES * 60 * 1000);
   const platform = trip.platform ? `Plat. ${trip.platform}` : '';
+  const showSegment = segmentFrom && segmentTo && (segmentFrom !== trip.fromStation || segmentTo !== trip.toStation);
+  const displayFrom = showSegment ? segmentFrom : trip.fromStation;
+  const displayTo = showSegment ? segmentTo : trip.toStation;
 
   return (
     <button
       type="button"
-      onClick={() => onSelect(trip)}
-      className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#0d3b66] focus:ring-offset-2"
+      onClick={onSelect}
+      className={`w-full rounded-xl border-2 p-4 text-left transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d5c4c] ${
+        selected ? 'shadow-md' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+      }`}
+      style={
+        selected
+          ? { borderColor: accent, backgroundColor: `${accent}18` }
+          : {}
+      }
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2 min-w-0">
           <div>
             <p className="text-lg font-semibold text-slate-900">{formatTime(trip.departureTime)}</p>
-            <p className="text-xs text-green-600 font-medium">On time</p>
-            <p className="text-sm text-slate-600">{trip.fromStation}</p>
+            <p className="text-xs text-slate-500">On time</p>
+            <p className="text-sm text-slate-600">{displayFrom}</p>
           </div>
           <span className="text-slate-400 shrink-0" aria-hidden>→</span>
           <div>
             <p className="text-lg font-semibold text-slate-900">{formatTime(arr)}</p>
-            <p className="text-xs text-green-600 font-medium">On time</p>
-            <p className="text-sm text-slate-600">{trip.toStation}</p>
+            <p className="text-xs text-slate-500">On time</p>
+            <p className="text-sm text-slate-600">{displayTo}</p>
           </div>
         </div>
         <p className="text-lg font-bold text-slate-900 shrink-0">£{Number(trip.pricePerSeat).toFixed(2)}</p>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
+        {showSegment && (
+          <span className="text-xs text-slate-500">Train: {trip.fromStation} → {trip.toStation}</span>
+        )}
         {platform && <span>{platform}</span>}
         <span>{DURATION_MINUTES}m, direct</span>
-        <span className="text-[#0d3b66] font-medium">Live tracker &gt;</span>
+        {trip.fareTier && <span className="text-xs font-medium text-slate-600">{trip.fareTier}</span>}
       </div>
     </button>
   );

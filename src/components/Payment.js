@@ -81,7 +81,10 @@ function Payment({
 
   if (!reservations?.length) return null;
 
-  const trip = reservations[0]?.trip;
+  const r = reservations[0];
+  const trip = r?.trip;
+  const journeyFrom = r?.journeyFromStation || trip?.fromStation;
+  const journeyTo = r?.journeyToStation || trip?.toStation;
   const expired = secondsLeft !== null && secondsLeft <= 0;
 
   return (
@@ -95,7 +98,7 @@ function Payment({
 
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <p className="text-sm text-gray-600">
-          {trip?.fromStation} → {trip?.toStation}
+          {journeyFrom && journeyTo ? `${journeyFrom} → ${journeyTo}` : (trip ? `${trip.fromStation} → ${trip.toStation}` : '')}
         </p>
         <p className="text-gray-900 font-medium">Seats: {seats}</p>
         <p className="mt-2 text-xl font-semibold text-black">Total: £{total.toFixed(2)}</p>
@@ -106,11 +109,14 @@ function Payment({
             </span>
           ) : secondsLeft !== null ? (
             <>
-              Trip considered done in: <span className="font-mono text-black">{formatCountdown(secondsLeft)}</span> (demo)
+              Reservation expires in: <span className="font-mono text-black">{formatCountdown(secondsLeft)}</span>
             </>
           ) : (
             'Reservation timer loading…'
           )}
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          If you don&apos;t pay in time, your seat will be released for others (enterprise: reservation timeout).
         </p>
       </div>
 

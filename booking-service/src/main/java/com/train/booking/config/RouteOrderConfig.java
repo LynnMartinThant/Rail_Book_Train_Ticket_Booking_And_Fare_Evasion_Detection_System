@@ -5,10 +5,11 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
-/**
- * Ordered list of stations on the demo route for ticket coverage validation.
- * Segment is covered if ticket origin <= segment origin and ticket destination >= segment destination (by index).
- */
+    /**
+     * Ordered list of stations on the demo route for ticket coverage validation.
+     * Forward segment (origin index <= dest index): covered if ticket origin <= segment origin and ticket dest >= segment dest.
+     * Backward segment (origin index > dest index): covered if ticket origin >= segment origin and ticket dest <= segment dest.
+     */
 @Configuration
 @ConfigurationProperties(prefix = "booking.route")
 public class RouteOrderConfig {
@@ -39,7 +40,18 @@ public class RouteOrderConfig {
         int so = indexOf(segmentOrigin);
         int sd = indexOf(segmentDest);
         if (to < 0 || td < 0 || so < 0 || sd < 0) return false;
-        return to <= so && td >= sd;
+        if (so <= sd) {
+            return to <= so && td >= sd; // forward segment
+        }
+        return to >= so && td <= sd; // backward segment
+    }
+
+    /** True if actual destination is beyond ticket destination on the route (over-travel). */
+    public boolean passedDestination(String ticketDest, String actualDest) {
+        int td = indexOf(ticketDest);
+        int ad = indexOf(actualDest);
+        if (td < 0 || ad < 0) return false;
+        return ad > td;
     }
 
     /** True if ticket is "short" for the segment: covers part but not full (ticket dest before segment dest). */

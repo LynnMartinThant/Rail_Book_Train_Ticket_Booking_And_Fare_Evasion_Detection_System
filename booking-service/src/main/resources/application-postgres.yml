@@ -1,0 +1,11 @@
+# Optional: activate with -Dspring.profiles.active=postgres
+# Set SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD
+# (or use DATABASE_URL and skip this profile — the app will auto-configure from DATABASE_URL)
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+  h2:
+    console:
+      enabled: false
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect

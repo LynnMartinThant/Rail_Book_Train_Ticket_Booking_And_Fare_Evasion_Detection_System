@@ -1,5 +1,7 @@
 # How to test RailBook
 
+For a **combined test strategy** (unit → integration → system → acceptance → performance → security → regression → compatibility → chaos) and concrete test cases for the whole system, see **[docs/TEST-STRATEGY-AND-CASES.md](docs/TEST-STRATEGY-AND-CASES.md)**.
+
 ## 1. Start backend and frontend
 
 **Terminal 1 – Backend**
@@ -130,7 +132,25 @@ Response shape: `successCount`, `failureCount`, `totalRequested`, `errors`. Unde
 
 ---
 
-## 5. Run backend unit tests
+## 5. Run backend tests
+
+**Integration tests** (implement TESTING.md §2–§4 and §6):
+
+```bash
+cd booking-service
+mvn test -Dtest=RailBookTestingMdIntegrationTest
+```
+
+These tests use the `test` profile (in-memory H2, no Kafka, `application-test.yml`) and seed one geofence, one trip with four seats and fare buckets (ADVANCE_1, ADVANCE_2, ANYTIME). They cover:
+
+- **§2 Geofence + no ticket:** Record ENTERED for a user without a ticket → GET pending actions returns one.
+- **§3 Validate QR:** Register → reserve → demo payment → trigger no-ticket entry → validate-qr with reservation ID → pending list empty.
+- **§4.1 Load test:** POST load-test/geofence-entries (50 users) → successCount 50, failureCount 0.
+- **§6 Payment flow:** Reserve → create-payment-intent (demo) → reservation becomes CONFIRMED.
+- **Dynamic pricing (Drools):** Reserve with fare buckets present → reservation amount is one of the bucket prices (8, 9, or 10).
+- **Double booking:** User A reserves a seat → User B reserves the same seat → second request returns 400, no reservation for B.
+
+Run **all** backend tests (including any other unit tests):
 
 ```bash
 cd booking-service

@@ -8,9 +8,9 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface GeofenceEventRepository extends JpaRepository<GeofenceEvent, Long> {
+public interface GeofenceEventRepository extends JpaRepository<GeofenceEvent, Long> { // geofence event repo for  journey reconstruction
 
-    List<GeofenceEvent> findAllByOrderByCreatedAtDesc(org.springframework.data.domain.Pageable pageable);
+    List<GeofenceEvent> findAllByOrderByCreatedAtDesc(org.springframework.data.domain.Pageable pageable); // all event rec , event time, entry or exit when user comes to geofence
 
     @Query("select e from GeofenceEvent e join fetch e.geofence where e.userId = :userId order by e.createdAt desc")
     List<GeofenceEvent> findByUserIdOrderByCreatedAtDesc(@Param("userId") String userId, org.springframework.data.domain.Pageable pageable);
@@ -20,4 +20,6 @@ public interface GeofenceEventRepository extends JpaRepository<GeofenceEvent, Lo
 
     @Query("select e from GeofenceEvent e join fetch e.geofence where e.userId = :userId and e.eventType = 'EXITED' order by e.createdAt desc")
     List<GeofenceEvent> findExitedEventsByUserIdOrderByCreatedAtDesc(@Param("userId") String userId, org.springframework.data.domain.Pageable pageable);
+
+    void deleteByUserIdIn(List<String> userIds);
 }

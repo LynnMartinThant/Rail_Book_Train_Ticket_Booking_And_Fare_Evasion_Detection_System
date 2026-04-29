@@ -15,7 +15,7 @@ function formatTime(iso) {
 }
 
 function HomeScreen(props) {
-    const { user, alerts, pendingStationEntryActions, bookings, segments, currentStation, departures, onBuyTicket, onViewJourney, onRefreshStation, onEnableLocation } = props;
+  const { user, alerts, pendingStationEntryActions, bookings, segments, currentStation, departures, onBuyTicket, onViewJourney, onRefreshStation, onEnableLocation } = props;
   const unreadAlerts = alerts ? alerts.filter(function(a) { return !a.readAt; }) : [];
   const hasNoTicketWarning = unreadAlerts.length > 0 || (pendingStationEntryActions && pendingStationEntryActions.length > 0);
   const latestAlert = unreadAlerts[0] || (alerts && alerts[0]);
@@ -134,7 +134,7 @@ function HomeScreen(props) {
               return (
                 <li key={b.id} className="rounded-lg border border-slate-200 bg-white p-3 flex justify-between items-center">
                   <div>
-                    <p className="font-medium text-slate-900">{b.trip && b.trip.fromStation} to {b.trip && b.trip.toStation}</p>
+                    <p className="font-medium text-slate-900">{(b.journeyFromStation && b.journeyToStation) ? `${b.journeyFromStation} to ${b.journeyToStation}` : (b.trip ? `${b.trip.fromStation} to ${b.trip.toStation}` : '')}</p>
                     <p className="text-xs text-slate-500">{formatDate(b.trip && b.trip.departureTime)}</p>
                   </div>
                   <span className={'text-sm font-medium ' + (b.status === 'CONFIRMED' || b.status === 'PAID' ? 'text-green-600' : 'text-slate-600')}>{b.status}</span>

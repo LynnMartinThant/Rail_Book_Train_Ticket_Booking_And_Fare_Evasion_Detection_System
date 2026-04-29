@@ -5,8 +5,8 @@ import lombok.Data;
 
 import java.time.Instant;
 
-@Data
-@Builder
+@Data  //admin view of notification from user
+@Builder 
 public class UserNotificationDto {
     private Long id;
     private String userId;

@@ -10,21 +10,19 @@ import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Policy-driven checks for booking workflow.
- */
+// policy driven flows 
 @Service
 @RequiredArgsConstructor
 public class BookingPolicyService {
 
-    private final BookingPolicyProperties policy;
+    private final BookingPolicyProperties policy; // config
 
-    public int getReservationTimeoutMinutes() {
+    public int getReservationTimeoutMinutes() { // timeout for reservation fetched from config
         return policy.getReservationTimeoutMinutes();
     }
 
     public Instant reservationExpiresAt() {
-        return Instant.now().plusSeconds(policy.getReservationTimeoutMinutes() * 60L);
+        return Instant.now().plusSeconds(policy.getReservationTimeoutMinutes() * 60L); // demo business rules
     }
 
     public void validateSeatCount(int seatCount) {
@@ -35,7 +33,7 @@ public class BookingPolicyService {
     }
 
     public boolean canProceedToPayment(ReservationStatus status) {
-        return policy.getAllowedReservationStatusesForPayment().stream()
+        return policy.getAllowedReservationStatusesForPayment().stream() // check for double booking prevention
             .anyMatch(s -> s.equals(status.name()));
     }
 
@@ -46,7 +44,7 @@ public class BookingPolicyService {
 
     public void assertCanPay(Reservation r) {
         if (r.getExpiresAt() != null && r.getExpiresAt().isBefore(Instant.now())) {
-            throw new IllegalStateException("Reservation has expired");
+            throw new IllegalStateException("Reservation has expired"); // after time out
         }
         if (!canProceedToPayment(r.getStatus())) {
             throw new IllegalStateException("Reservation cannot be paid; status: " + r.getStatus());

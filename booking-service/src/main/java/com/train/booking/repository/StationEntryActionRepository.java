@@ -26,4 +26,6 @@ public interface StationEntryActionRepository extends JpaRepository<StationEntry
 
     /** Prevent same reservation being used for two different actions. */
     boolean existsByQrValidatedReservationId(Long reservationId);
+
+    long countByStatus(StationEntryAction.Status status);
 }

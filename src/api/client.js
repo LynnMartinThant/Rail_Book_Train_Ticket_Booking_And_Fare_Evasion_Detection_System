@@ -160,11 +160,14 @@ export async function getSeats(tripId) {
   return parseJson(res);
 }
 
-export async function reserve(tripId, seatIds) {
+export async function reserve(tripId, seatIds, journeyFromStation, journeyToStation) {
+  const body = { tripId, seatIds };
+  if (journeyFromStation) body.journeyFromStation = journeyFromStation;
+  if (journeyToStation) body.journeyToStation = journeyToStation;
   const res = await fetch(`${apiBase()}/reserve`, {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ tripId, seatIds }),
+    body: JSON.stringify(body),
   });
   const data = await parseJson(res).catch((e) => {
     if ((e.message && e.message.includes('Booking service'))) throw e;
@@ -251,11 +254,13 @@ export async function downloadTicketPdf(reservationId) {
   URL.revokeObjectURL(url);
 }
 
-export async function reportLocation(latitude, longitude) {
+export async function reportLocation(latitude, longitude, accuracyMeters) {
+  const body = { latitude, longitude };
+  if (accuracyMeters != null && Number.isFinite(accuracyMeters)) body.accuracyMeters = accuracyMeters;
   const res = await fetch(`${apiBase()}/location`, {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ latitude, longitude }),
+    body: JSON.stringify(body),
   });
   const data = await parseJson(res).catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || res.statusText);
@@ -397,6 +402,31 @@ export async function getAdminGeofenceEvents(adminSecret, limit = 100) {
   return parseJson(res);
 }
 
+/** List tickets (CONFIRMED/PAID reservations) for journey matching and reporting. */
+export async function getAdminTickets(adminSecret, limit = 200) {
+  const res = await fetch(`${apiBase()}/admin/tickets?limit=${limit}`, {
+    headers: { ...headers(), 'X-Admin-Secret': adminSecret || '' },
+  });
+  if (!res.ok) {
+    const body = await parseJson(res).catch(() => ({}));
+    throw new Error(body?.error || res.statusText);
+  }
+  return parseJson(res);
+}
+
+/** Run ticket-sharing detection; returns { alertsRaised }. */
+export async function runAdminDetectTicketSharing(adminSecret) {
+  const res = await fetch(`${apiBase()}/admin/detect-ticket-sharing`, {
+    method: 'POST',
+    headers: { ...headers(), 'X-Admin-Secret': adminSecret || '' },
+  });
+  if (!res.ok) {
+    const body = await parseJson(res).catch(() => ({}));
+    throw new Error(body?.error || res.statusText);
+  }
+  return parseJson(res);
+}
+
 /** Audit log entries for FARE_EVASION action. */
 export async function getAdminFareEvasion(adminSecret, limit = 100) {
   const res = await fetch(`${apiBase()}/admin/fare-evasion?limit=${limit}`, {
@@ -432,6 +462,97 @@ export async function getAdminUserLocations(adminSecret) {
   return parseJson(res);
 }
 
+export async function getAdminMovementEvents(adminSecret, { userId, limit = 25 } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (userId) params.set('userId', userId);
+  const res = await fetch(`${apiBase()}/admin/movement-events?${params}`, {
+    headers: { ...headers(), 'X-Admin-Secret': adminSecret || '' },
+  });
+  if (!res.ok) {
+    const body = await parseJson(res).catch(() => ({}));
+    throw new Error(body?.error || res.statusText);
+  }
+  return parseJson(res);
+}
+
+/** Central fare/fraud audit rows (structured JSON payloads). */
+export async function getAdminAuditDecisions(adminSecret, { userId, limit = 50 } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (userId) params.set('userId', userId);
+  const res = await fetch(`${apiBase()}/admin/audit-decisions?${params}`, {
+    headers: { ...headers(), 'X-Admin-Secret': adminSecret || '' },
+  });
+  if (!res.ok) {
+    const body = await parseJson(res).catch(() => ({}));
+    throw new Error(body?.error || res.statusText);
+  }
+  return parseJson(res);
+}
+
+/** Evidence view for a single correlation trace. */
+export async function getAdminEvidence(adminSecret, correlationId, limit = 200) {
+  const params = new URLSearchParams({ correlationId: String(correlationId || ''), limit: String(limit) });
+  const res = await fetch(`${apiBase()}/admin/evidence?${params}`, {
+    headers: { ...headers(), 'X-Admin-Secret': adminSecret || '' },
+  });
+  if (!res.ok) {
+    const body = await parseJson(res).catch(() => ({}));
+    throw new Error(body?.error || res.statusText);
+  }
+  return parseJson(res);
+}
+
+/** Admin dispute queue with optional status filter (OPEN, UNDER_REVIEW, ACCEPTED, REJECTED). */
+export async function getAdminDisputes(adminSecret, status) {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  const qs = params.toString();
+  const res = await fetch(`${apiBase()}/admin/disputes${qs ? `?${qs}` : ''}`, {
+    headers: { ...headers(), 'X-Admin-Secret': adminSecret || '' },
+  });
+  if (!res.ok) {
+    const body = await parseJson(res).catch(() => ({}));
+    throw new Error(body?.error || res.statusText);
+  }
+  return parseJson(res);
+}
+
+export async function markAdminDisputeUnderReview(adminSecret, disputeId) {
+  const res = await fetch(`${apiBase()}/admin/disputes/${encodeURIComponent(disputeId)}/under-review`, {
+    method: 'PATCH',
+    headers: { ...headers(), 'X-Admin-Secret': adminSecret || '' },
+  });
+  if (!res.ok) {
+    const body = await parseJson(res).catch(() => ({}));
+    throw new Error(body?.error || res.statusText);
+  }
+  return parseJson(res);
+}
+
+export async function acceptAdminDispute(adminSecret, disputeId) {
+  const res = await fetch(`${apiBase()}/admin/disputes/${encodeURIComponent(disputeId)}/accept`, {
+    method: 'PATCH',
+    headers: { ...headers(), 'X-Admin-Secret': adminSecret || '' },
+  });
+  if (!res.ok) {
+    const body = await parseJson(res).catch(() => ({}));
+    throw new Error(body?.error || res.statusText);
+  }
+  return parseJson(res);
+}
+
+export async function rejectAdminDispute(adminSecret, disputeId) {
+  const res = await fetch(`${apiBase()}/admin/disputes/${encodeURIComponent(disputeId)}/reject`, {
+    method: 'PATCH',
+    headers: { ...headers(), 'X-Admin-Secret': adminSecret || '' },
+  });
+  if (!res.ok) {
+    const body = await parseJson(res).catch(() => ({}));
+    throw new Error(body?.error || res.statusText);
+  }
+  return parseJson(res);
+}
+
 export async function simulateUserNoTicket(adminSecret, userId = '4') {
   const res = await fetch(`${apiBase()}/admin/geofence-events/simulate-no-ticket?userId=${encodeURIComponent(userId)}`, {
     method: 'POST',
@@ -455,7 +576,7 @@ export async function simulateJourneyDoncasterSheffield(adminSecret, userId, ent
 }
 
 /** Simulate journey between any two station geofences (enter origin, exit origin, enter destination). Trip segment + PENDING_RESOLUTION created. */
-export async function simulateJourney(adminSecret, userId, originGeofenceId, destinationGeofenceId, enterOriginAt, enterDestinationAt) {
+export async function simulateJourney(adminSecret, userId, originGeofenceId, destinationGeofenceId, enterOriginAt, enterDestinationAt, accuracyMeters) {
   const res = await fetch(`${apiBase()}/admin/geofence-events/simulate-journey`, {
     method: 'POST',
     headers: { ...headers(), 'X-Admin-Secret': adminSecret || '', 'Content-Type': 'application/json' },
@@ -465,7 +586,32 @@ export async function simulateJourney(adminSecret, userId, originGeofenceId, des
       destinationGeofenceId,
       enterOriginAt,
       enterDestinationAt,
+      accuracyMeters: accuracyMeters ?? undefined,
     }),
+  });
+  const data = await parseJson(res).catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || res.statusText);
+  return data;
+}
+
+/** Run full fraud detection engine (ticket sharing, refund fraud, multi-device, suspicious account, consistency). Returns { ticketSharingAlerts, refundFraudAlerts, ... }. */
+export async function runFraudDetection(adminSecret) {
+  const res = await fetch(`${apiBase()}/admin/fraud-detection/run`, {
+    method: 'POST',
+    headers: { ...headers(), 'X-Admin-Secret': adminSecret || '' },
+  });
+  const data = await parseJson(res).catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || res.statusText);
+  return data;
+}
+
+/** Run full simulation: one user with ticket (PAID), one without (PENDING_RESOLUTION). Returns segments with confidence and train match. */
+export async function runFullSimulation(adminSecret, tripId) {
+  const path = `${apiBase()}/admin/simulation/run`;
+  const url = tripId != null ? `${path}?tripId=${encodeURIComponent(tripId)}` : path;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { ...headers(), 'X-Admin-Secret': adminSecret || '' },
   });
   const data = await parseJson(res).catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || res.statusText);
@@ -483,6 +629,18 @@ export async function getAdminTripSegments(adminSecret, passengerId = null, limi
     throw new Error(body?.error || res.statusText);
   }
   return parseJson(res);
+}
+
+/** Update admin review lifecycle state for a PENDING_REVIEW segment. */
+export async function updateAdminPendingReviewState(adminSecret, segmentId, state, note) {
+  const res = await fetch(`${apiBase()}/admin/trip-segments/${encodeURIComponent(segmentId)}/review-state`, {
+    method: 'PATCH',
+    headers: { ...headers(), 'X-Admin-Secret': adminSecret || '' },
+    body: JSON.stringify({ state, note }),
+  });
+  const data = await parseJson(res).catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || res.statusText);
+  return data;
 }
 
 export async function sendAdminNotification(adminSecret, userId, message) {
@@ -577,17 +735,29 @@ export async function getStationDepartures(stationName) {
   return Array.isArray(data) ? data : [];
 }
 
-/** Upload ticket proof to dispute a segment marked as no ticket (UNPAID_TRAVEL/UNDERPAID). */
-export async function uploadTicketForSegment(segmentId, reservationId) {
+/** Upload ticket proof to open a formal dispute + recomputation lineage. */
+export async function uploadTicketForSegment(segmentId, reservationId, reason, evidenceReference) {
   const res = await fetch(`${apiBase()}/my/trip-segments/${segmentId}/upload-ticket`, {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ reservationId }),
+    body: JSON.stringify({ reservationId, reason, evidenceReference }),
   });
   if (!res.ok) {
     const data = await parseJson(res).catch(() => ({}));
     throw new Error(data?.error || res.statusText);
   }
+  return parseJson(res);
+}
+
+export async function getMySegmentDisputes(segmentId) {
+  const res = await fetch(`${apiBase()}/my/trip-segments/${segmentId}/disputes`, { headers: headers() });
+  if (!res.ok) throw new Error(await res.text());
+  return parseJson(res);
+}
+
+export async function getMySegmentRecomputations(segmentId) {
+  const res = await fetch(`${apiBase()}/my/trip-segments/${segmentId}/recomputations`, { headers: headers() });
+  if (!res.ok) throw new Error(await res.text());
   return parseJson(res);
 }
 

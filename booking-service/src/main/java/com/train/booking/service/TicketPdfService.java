@@ -1,11 +1,11 @@
 package com.train.booking.service;
 
 import com.train.booking.domain.Reservation;
-import com.google.zxing.BarcodeFormat;
+import com.google.zxing.BarcodeFormat; // barcode format
 import com.google.zxing.EncodeHintType;
-import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.client.j2se.MatrixToImageWriter; // id to qr
 import com.google.zxing.common.BitMatrix;
-import com.google.zxing.qrcode.QRCodeWriter;
+import com.google.zxing.qrcode.QRCodeWriter; 
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.PdfWriter;
 import lombok.extern.slf4j.Slf4j;
@@ -18,9 +18,9 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
-/**
- * Generates a PDF ticket for a confirmed/paid reservation.
- */
+
+ // Generates a PDF ticket for a confirmed/paid reservation.
+
 @Service
 @Slf4j
 public class TicketPdfService {
@@ -28,20 +28,22 @@ public class TicketPdfService {
     private static final DateTimeFormatter FORMATTER =
         DateTimeFormatter.ofPattern("EEE, d MMM yyyy HH:mm").withZone(ZoneId.systemDefault());
 
-    /**
-     * Generate PDF bytes for the given reservation (must have tripSeat, trip, seat, train loaded).
-     */
+    
+     // Generate PDF bytes for the given reservation (must have tripSeat, trip, seat, train loaded from db ).
+    
     public byte[] generateTicketPdf(Reservation r) {
         if (r == null || r.getTripSeat() == null) {
             throw new IllegalArgumentException("Reservation or trip seat missing");
         }
         var ts = r.getTripSeat();
-        var trip = ts.getTrip();
+        var trip = ts.getTrip(); 
         var seat = ts.getSeat();
         var train = trip != null ? trip.getTrain() : null;
 
-        String fromStation = trip != null ? trip.getFromStation() : "—";
-        String toStation = trip != null ? trip.getToStation() : "—";
+        String fromStation = (r.getJourneyFromStation() != null && !r.getJourneyFromStation().isBlank()) // validation for journey from sation
+            ? r.getJourneyFromStation() : (trip != null ? trip.getFromStation() : "—"); // trip form station
+        String toStation = (r.getJourneyToStation() != null && !r.getJourneyToStation().isBlank())
+            ? r.getJourneyToStation() : (trip != null ? trip.getToStation() : "—");
         String departureStr = trip != null && trip.getDepartureTime() != null
             ? FORMATTER.format(trip.getDepartureTime()) : "—";
         String seatNumber = seat != null ? seat.getSeatNumber() : "—";
@@ -50,21 +52,21 @@ public class TicketPdfService {
         String amount = r.getAmount() != null ? r.getAmount().toPlainString() : "—";
         String currency = r.getCurrency() != null ? r.getCurrency() : "GBP";
 
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream out = new ByteArrayOutputStream(); // ouput byte to pdf
         Document document = new Document(PageSize.A5);
         try {
             PdfWriter.getInstance(document, out);
             document.open();
-            Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
+            Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18); // fonts
             Font headingFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
             Font normalFont = FontFactory.getFont(FontFactory.HELVETICA, 11);
 
-            document.add(new Paragraph("Train Ticket", titleFont));
+            document.add(new Paragraph("Train Ticket", titleFont)); // format
             document.add(Chunk.NEWLINE);
             document.add(new Paragraph("Reservation ID: " + r.getId(), headingFont));
             document.add(new Paragraph("Ticket reference: " + (r.getPaymentReference() != null ? r.getPaymentReference() : r.getId().toString()), normalFont));
             document.add(Chunk.NEWLINE);
-            document.add(new Paragraph("Route", headingFont));
+            document.add(new Paragraph("Journey", headingFont));
             document.add(new Paragraph(fromStation + " → " + toStation, normalFont));
             document.add(new Paragraph("Departure: " + departureStr, normalFont));
             document.add(Chunk.NEWLINE);
@@ -74,7 +76,7 @@ public class TicketPdfService {
             document.add(new Paragraph("Amount paid: " + amount + " " + currency, normalFont));
             document.add(new Paragraph("Status: " + r.getStatus().name(), normalFont));
             document.add(Chunk.NEWLINE);
-            // QR code encoding reservation ID (same as app ticket QR for validation)
+            // QR code encoding reservation ID 
             byte[] qrPng = generateQrPng(String.valueOf(r.getId()), 120, 120);
             if (qrPng != null && qrPng.length > 0) {
                 try {

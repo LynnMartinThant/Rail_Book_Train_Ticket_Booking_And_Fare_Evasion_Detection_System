@@ -1,0 +1,14 @@
+spring:
+  main:
+    lazy-initialization: true
+
+booking:
+  movement:
+    streams-enabled: false
+    event-driven-pipeline-enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

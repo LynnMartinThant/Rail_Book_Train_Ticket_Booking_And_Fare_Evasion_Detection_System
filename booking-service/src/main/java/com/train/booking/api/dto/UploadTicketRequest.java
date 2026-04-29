@@ -8,4 +8,8 @@ public class UploadTicketRequest {
     /** Reservation ID from ticket (typed or decoded from QR). */
     @NotNull(message = "reservationId is required")
     private Long reservationId;
+    /** Passenger reason for dispute (optional). */
+    private String reason;
+    /** Evidence URI/reference (optional: file id, blob key, url). */
+    private String evidenceReference;
 }

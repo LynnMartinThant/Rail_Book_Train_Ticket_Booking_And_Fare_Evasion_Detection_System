@@ -25,7 +25,9 @@ public class KafkaLocationEventConsumer {
             message.getGeofenceId(),
             message.getEventType(),
             message.getStationName(),
-            message.getCreatedAt()
+            message.getCreatedAt(),
+            message.getAccuracyMeters(),
+            message.getCorrelationId()
         );
     }
 }

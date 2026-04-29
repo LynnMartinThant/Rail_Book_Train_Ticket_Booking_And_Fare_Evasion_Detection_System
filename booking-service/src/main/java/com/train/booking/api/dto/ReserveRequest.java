@@ -11,5 +11,9 @@ public class ReserveRequest {
     @NotNull
     private Long tripId;
     @NotEmpty
-    private List<Long> seatIds;
+    private List<Long> seatIds; 
+
+    private String journeyFromStation; //ticket for specific journey 
+   
+    private String journeyToStation;
 }

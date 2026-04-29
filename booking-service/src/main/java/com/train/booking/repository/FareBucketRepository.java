@@ -1,6 +1,6 @@
 package com.train.booking.repository;
 
-import com.train.booking.domain.FareBucket;
+import com.train.booking.domain.FareBucket; //allow save(), findById(), findAll(), and delete() for fare buckets
 
 import java.util.List;
 

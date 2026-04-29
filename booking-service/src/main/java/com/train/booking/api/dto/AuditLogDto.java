@@ -7,9 +7,9 @@ import java.time.Instant;
 
 @Data
 @Builder
-public class AuditLogDto {
+public class AuditLogDto { // Audit row for API
     private Long id;
-    private String userId;
+    private String userId; 
     private String action;
     private String details;
     private Instant createdAt;

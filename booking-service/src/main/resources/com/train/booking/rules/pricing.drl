@@ -1,0 +1,49 @@
+package com.train.booking.rules
+
+import com.train.booking.rules.PricingRuleFacts.*
+import java.math.BigDecimal
+
+// Advance tiers not available on or after departure day
+rule "Advance tickets not available same day"
+  when
+    $ctx : PricingContext(daysUntilDeparture < 1)
+    $tier : FareTierOption((tierName == "ADVANCE_1" || tierName == "ADVANCE_2"), available == true)
+  then
+    modify($tier) { setAvailable(false) }
+end
+
+// Off-peak not allowed during peak hours (06:30-09:30, 16:00-19:00)
+rule "Off-peak not allowed in peak hours"
+  when
+    $ctx : PricingContext(peakDeparture == true)
+    $tier : FareTierOption(tierName == "OFF_PEAK", available == true)
+  then
+    modify($tier) { setAvailable(false) }
+end
+
+// When 70% full, close cheapest tier (Advance 1)
+rule "Close lowest tier at 70 percent occupancy"
+  when
+    $ctx : PricingContext(occupancyPct >= 70.0)
+    $tier : FareTierOption(tierName == "ADVANCE_1", available == true)
+  then
+    modify($tier) { setAvailable(false) }
+end
+
+// When 80% full, close Advance 2 as well
+rule "Close Advance 2 at 80 percent occupancy"
+  when
+    $ctx : PricingContext(occupancyPct >= 80.0)
+    $tier : FareTierOption(tierName == "ADVANCE_2", available == true)
+  then
+    modify($tier) { setAvailable(false) }
+end
+
+// When fewer than 5 seats left, only Anytime fare
+rule "Last-minute only Anytime when under 5 seats"
+  when
+    $ctx : PricingContext(totalSeats - seatsSold < 5)
+    $tier : FareTierOption(tierName != "ANYTIME", available == true)
+  then
+    modify($tier) { setAvailable(false) }
+end

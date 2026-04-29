@@ -1,37 +1,98 @@
 package com.train.booking.service;
 
-import com.train.booking.domain.Geofence;
-import com.train.booking.domain.GeofenceEvent;
-import com.train.booking.domain.UserLocation;
-import com.train.booking.repository.GeofenceRepository;
-import com.train.booking.repository.UserLocationRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import com.train.booking.domain.Geofence;
+import com.train.booking.domain.UserLocation;
+import com.train.booking.movement.eventlog.MovementEventType;
+import com.train.booking.movement.eventlog.MovementEventWriter;
+import com.train.booking.movement.metrics.MovementPipelineMetrics;
+import com.train.booking.platform.MovementSourceLayer;
+import com.train.booking.quality.DataQualityAssessment;
+import com.train.booking.quality.DataQualityScoringService;
+import com.train.booking.repository.UserLocationRepository;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
- * Processes user location updates: persists latest position and detects geofence entry/exit.
+
+ * stores latest position. Ingestion is intentionally minimal: the service records a pseudonymous
+ * user identifier, a timestamp/correlation context, and raw location/beacon inputs as transient
+ * signals rather than preserving a continuous movement history.
+ * Geofence enter/exit detection is delegated to {@link GeofenceService}
+ * (station / local layer).
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class LocationService {
 
-    private static final double EARTH_RADIUS_METRES = 6_371_000;
-
     private final UserLocationRepository userLocationRepository;
-    private final GeofenceRepository geofenceRepository;
     private final GeofenceService geofenceService;
+    private final MovementEventWriter movementEventWriter;
+    private final MovementPipelineMetrics movementPipelineMetrics;
+    private final DataQualityScoringService dataQualityScoringService;
 
     /**
-     * Report user's current location. Updates stored position and detects ENTERED/EXITED for each geofence.
+     * Report user's current location. Updates stored position; station layer evaluates geofence transitions.
+     * This endpoint accepts a pseudonymous user id and raw location input as a transient signal;
+     * Optionally pass accuracyMeters (GPS) for journey reconstruction confidence scoring.
      */
     @Transactional
     public UserLocation reportLocation(String userId, double latitude, double longitude) {
+        return reportLocation(userId, latitude, longitude, null);
+    }
+
+    @Transactional
+    public UserLocation reportLocation(String userId, double latitude, double longitude, Double accuracyMeters) {
+        String correlationId = UUID.randomUUID().toString();
+        Map<String, Object> locationPayload = new LinkedHashMap<>();
+        locationPayload.put("latitude", latitude);
+        locationPayload.put("longitude", longitude);
+        locationPayload.put("accuracyMeters", accuracyMeters);
+        movementEventWriter.append(
+            userId,
+            correlationId,
+            MovementEventType.LocationReported, /*Converts raw input into a structured event*/
+            null,
+            locationPayload,
+            MovementSourceLayer.MOVEMENT_INGESTION
+        );
         UserLocation previous = userLocationRepository.findByUserId(userId).orElse(null);
+        Duration lag = previous != null && previous.getUpdatedAt() != null
+            ? Duration.between(previous.getUpdatedAt(), Instant.now())
+            : Duration.ZERO;
+        double jumpMetres = previous != null
+            ? distanceMetres(previous.getLatitude(), previous.getLongitude(), latitude, longitude)
+            : 0.0;
+        boolean duplicate = previous != null
+            && Double.compare(previous.getLatitude(), latitude) == 0
+            && Double.compare(previous.getLongitude(), longitude) == 0;
+        DataQualityAssessment quality = dataQualityScoringService.assess(accuracyMeters, lag, jumpMetres, duplicate); /*checks whether the data is reliable before using it*/
+        Map<String, Object> qualityPayload = new LinkedHashMap<>();
+        qualityPayload.put("trustScore", quality.trustScore());
+        qualityPayload.put("usableForInference", quality.usableForInference());
+        qualityPayload.put("usableForEnforcement", quality.usableForEnforcement());
+        qualityPayload.put("issues", quality.issues());
+        qualityPayload.put("jumpMetres", jumpMetres);
+        movementEventWriter.append(
+            userId,
+            correlationId,
+            MovementEventType.DataQualityAssessed,
+            null,
+            qualityPayload,
+            MovementSourceLayer.MOVEMENT_INGESTION
+        );
+        movementPipelineMetrics.recordLocationAccepted();
 
         UserLocation current = previous != null
             ? previous
@@ -40,18 +101,21 @@ public class LocationService {
         current.setLongitude(longitude);
         current = userLocationRepository.save(current);
 
-        List<Geofence> geofences = geofenceRepository.findAllByOrderByNameAsc();
-        for (Geofence g : geofences) {
-            boolean nowInside = isInside(latitude, longitude, g.getLatitude(), g.getLongitude(), g.getRadiusMeters());
-            boolean wasInside = previous != null && isInside(
-                previous.getLatitude(), previous.getLongitude(),
-                g.getLatitude(), g.getLongitude(), g.getRadiusMeters());
-
-            if (!wasInside && nowInside) {
-                geofenceService.recordEvent(userId, g.getId(), GeofenceEvent.EventType.ENTERED);
-            } else if (wasInside && !nowInside) {
-                geofenceService.recordEvent(userId, g.getId(), GeofenceEvent.EventType.EXITED);
-            }
+        if (quality.usableForInference()) {
+            geofenceService.applyLocationReportForStationTransitions(userId, previous, latitude, longitude, accuracyMeters, correlationId);
+        } else {
+            Map<String, Object> rejected = new LinkedHashMap<>();
+            rejected.put("reason", "Data quality too weak for station inference");
+            rejected.put("trustScore", quality.trustScore());
+            rejected.put("issues", quality.issues());
+            movementEventWriter.append(
+                userId,
+                correlationId,
+                MovementEventType.LocationRejected,
+                null,
+                rejected,
+                MovementSourceLayer.MOVEMENT_INGESTION
+            );
         }
         return current;
     }
@@ -60,7 +124,7 @@ public class LocationService {
         return userLocationRepository.findAllByOrderByUpdatedAtDesc();
     }
 
-    /** Save or update user location without running geofence detection (e.g. for demo data). */
+    /** Save or update user location without running geofence detection . */
     @Transactional
     public UserLocation saveUserLocationOnly(String userId, double latitude, double longitude) {
         UserLocation loc = userLocationRepository.findByUserId(userId)
@@ -71,41 +135,21 @@ public class LocationService {
     }
 
     /**
-     * Resolve current station for the user from their last reported location.
-     * Returns the geofence (station) that contains the user, or the nearest geofence if none contains them.
+     * Resolve current station from last reported coordinates via station-layer geofence registry (not raw GPS in admin APIs).
      */
     public java.util.Optional<Geofence> getCurrentStation(String userId) {
         return userLocationRepository.findByUserId(userId)
-            .flatMap(loc -> {
-                List<Geofence> geofences = geofenceRepository.findAllByOrderByNameAsc();
-                for (Geofence g : geofences) {
-                    if (isInside(loc.getLatitude(), loc.getLongitude(), g.getLatitude(), g.getLongitude(), g.getRadiusMeters())) {
-                        return java.util.Optional.of(g);
-                    }
-                }
-                if (geofences.isEmpty()) return java.util.Optional.empty();
-                Geofence nearest = geofences.get(0);
-                double minDist = distanceMetres(loc.getLatitude(), loc.getLongitude(), nearest.getLatitude(), nearest.getLongitude());
-                for (int i = 1; i < geofences.size(); i++) {
-                    Geofence g = geofences.get(i);
-                    double d = distanceMetres(loc.getLatitude(), loc.getLongitude(), g.getLatitude(), g.getLongitude());
-                    if (d < minDist) { minDist = d; nearest = g; }
-                }
-                return java.util.Optional.of(nearest);
-            });
-    }
-
-    private static boolean isInside(double userLat, double userLon, double centerLat, double centerLon, int radiusMeters) {
-        return distanceMetres(userLat, userLon, centerLat, centerLon) <= radiusMeters;
+            .flatMap(loc -> geofenceService.resolveStationForCoordinates(loc.getLatitude(), loc.getLongitude()));
     }
 
     private static double distanceMetres(double lat1, double lon1, double lat2, double lon2) {
+        final double earthRadiusMetres = 6_371_000;
         double dLat = Math.toRadians(lat2 - lat1);
         double dLon = Math.toRadians(lon2 - lon1);
         double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
             + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
             * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return EARTH_RADIUS_METRES * c;
+        return earthRadiusMetres * c;
     }
 }

@@ -7,7 +7,7 @@ import java.time.Instant;
 
 @Data
 @Builder
-public class TicketAlertDto {
+public class TicketAlertDto { // Ticket alert + trip metadata for API
     private Long id;
     private String userId;
     private Long tripId;

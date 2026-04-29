@@ -21,6 +21,9 @@ function MobileTicket({ booking, expanded: initialExpanded = false }) {
   const [qrReady, setQrReady] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const trip = booking?.trip;
+  const journeyFrom = booking?.journeyFromStation || trip?.fromStation;
+  const journeyTo = booking?.journeyToStation || trip?.toStation;
+  const journeyLabel = journeyFrom && journeyTo ? `${journeyFrom} → ${journeyTo}` : (trip ? `${trip.fromStation} → ${trip.toStation}` : '');
   const seats = booking?.seats?.map((s) => s.seatNumber).join(', ') || '—';
   const isActive = booking?.status === 'CONFIRMED' || booking?.status === 'PAID';
   const qrValue = booking?.id ? String(booking.id) : '';
@@ -39,7 +42,7 @@ function MobileTicket({ booking, expanded: initialExpanded = false }) {
       >
         <div>
           <p className="font-semibold text-slate-900">
-            {trip?.fromStation} → {trip?.toStation}
+            {journeyLabel}
           </p>
           <p className="text-sm text-slate-600">
             {formatDate(trip?.departureTime)} · Seat(s) {seats}
@@ -60,7 +63,7 @@ function MobileTicket({ booking, expanded: initialExpanded = false }) {
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm">
             <span className="text-slate-500">Journey</span>
-            <span className="font-medium">{trip?.fromStation} → {trip?.toStation}</span>
+            <span className="font-medium">{journeyLabel}</span>
             <span className="text-slate-500">Travel date</span>
             <span className="font-medium">{formatDate(trip?.departureTime)}</span>
             <span className="text-slate-500">Departure</span>

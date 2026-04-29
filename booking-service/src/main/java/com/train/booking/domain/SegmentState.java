@@ -1,0 +1,19 @@
+package com.train.booking.domain;
+
+public enum SegmentState {
+    DETECTED,
+    PROPOSED,
+    CONFIRMED,
+    FARE_ASSESSED,
+    PAID,
+    UNDERPAID,
+    PENDING_REVIEW,
+    PENDING_RESOLUTION,
+    UNPAID_TRAVEL,
+    ESCALATED_FRAUD_REVIEW,
+    DISPUTED,
+    RECOMPUTING,
+    OVERTURNED_TO_PAID,
+    CLOSED
+}
+

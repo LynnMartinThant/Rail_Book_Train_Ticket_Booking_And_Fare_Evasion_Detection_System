@@ -17,12 +17,19 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      const err = this.state.error;
+      const message = err?.message || String(err);
       return (
         <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-6 text-center">
           <p className="text-lg font-semibold text-slate-800 mb-2">Something went wrong</p>
           <p className="text-sm text-slate-600 mb-4 max-w-md">
             The app hit an error. This can happen when resizing the window or switching device view. Try refreshing the page.
           </p>
+          {message && (
+            <pre className="mb-4 p-3 rounded bg-slate-200 text-left text-xs text-slate-700 overflow-auto max-w-md max-h-24">
+              {message}
+            </pre>
+          )}
           <button
             type="button"
             onClick={() => this.setState({ hasError: false, error: null })}

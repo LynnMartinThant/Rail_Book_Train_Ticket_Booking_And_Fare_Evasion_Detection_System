@@ -1,0 +1,49 @@
+# Test profile: in-memory H2, no Kafka, no DB reset on startup
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=LEGACY;INIT=CREATE SCHEMA IF NOT EXISTS PUBLIC
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  kafka:
+    bootstrap-servers: ""  # disable Kafka; in-process events only
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+
+booking:
+  movement:
+    event-driven-pipeline-enabled: true
+    streams-enabled: false
+  admin:
+    secret: admin123
+  data:
+    reset-on-startup: false
+  policy:
+    reservation-timeout-minutes: 5
+  refund:
+    request-window-minutes: 3
+  route:
+    # Full route order for simulated journey tests (over-travel, route violation)
+    station-order:
+      - Leeds
+      - Meadowhall Interchange
+      - Sheffield
+      - Rotherham Central
+  fare-evasion:
+    resolution-window-minutes: 60
+  geofence:
+    gps-min-accuracy-meters: 0
+    debounce-enter-ms: 0
+  fraud:
+    ticket-sharing-cron: "-"
+    cron: "-"
+
+stripe:
+  demo-mode: true
+  api-key: ""
+  webhook-secret: ""

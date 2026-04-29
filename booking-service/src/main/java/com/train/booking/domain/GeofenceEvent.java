@@ -5,7 +5,7 @@ import lombok.*;
 
 import java.time.Instant;
 
-@Entity
+@Entity // geofence event
 @Table(name = "geofence_events", indexes = {
     @Index(name = "idx_geofence_event_user_created", columnList = "user_id, created_at"),
     @Index(name = "idx_geofence_event_geofence", columnList = "geofence_id")
@@ -35,6 +35,10 @@ public class GeofenceEvent {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    
+    @Column(name = "accuracy_meters")
+    private Double accuracyMeters;
 
     public enum EventType { ENTERED, EXITED }
 

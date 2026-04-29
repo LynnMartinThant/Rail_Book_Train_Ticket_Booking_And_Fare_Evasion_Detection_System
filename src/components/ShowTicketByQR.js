@@ -28,6 +28,14 @@ function ShowTicketByQR({ onClose }) {
     return null;
   };
 
+  const parseReservationIdFromFilename = (name) => {
+    if (!name) return null;
+    const m = String(name).match(/(\d{1,12})/);
+    if (!m) return null;
+    const n = parseInt(m[1], 10);
+    return Number.isNaN(n) || n <= 0 ? null : n;
+  };
+
   const fetchAndShow = async (reservationId) => {
     setError(null);
     setBooking(null);
@@ -57,6 +65,18 @@ function ShowTicketByQR({ onClose }) {
     setError(null);
     setBooking(null);
     setLoading(true);
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (isPdf) {
+      const fromName = parseReservationIdFromFilename(file.name);
+      if (fromName != null) {
+        fetchAndShow(fromName);
+      } else {
+        setError('PDF selected. Enter reservation ID manually (or include it in the PDF filename, e.g. ticket-12345.pdf).');
+        setLoading(false);
+      }
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
@@ -131,11 +151,11 @@ function ShowTicketByQR({ onClose }) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Or upload QR image</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Or upload QR image / PDF ticket</label>
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,.pdf,application/pdf"
           capture="environment"
           onChange={handleFileChange}
           className="block w-full text-sm text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-blue-700"

@@ -13,4 +13,7 @@ public interface GeofenceRepository extends JpaRepository<Geofence, Long> {
     Optional<Geofence> findByName(String name);
 
     Optional<Geofence> findByStationName(String stationName);
+
+    /** All geofences for a station (main + platform-level). */
+    List<Geofence> findAllByStationName(String stationName);
 }

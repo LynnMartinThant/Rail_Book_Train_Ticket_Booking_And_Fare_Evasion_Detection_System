@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">RailBook</string>
-    <string name="title_activity_main">RailBook</string>
-    <string name="package_name">com.railbook.app</string>
-    <string name="custom_url_scheme">com.railbook.app</string>
-</resources>

@@ -25,9 +25,9 @@ public class Train {
 
     @Column(nullable = false)
     private String code;
-
+//Db relations
     @OneToMany(mappedBy = "train", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
+    @Builder.Default 
     private List<Seat> seats = new ArrayList<>();
 
     @OneToMany(mappedBy = "train")

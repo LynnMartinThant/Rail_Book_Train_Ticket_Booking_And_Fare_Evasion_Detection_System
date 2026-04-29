@@ -11,6 +11,7 @@ function UploadTicketModal({ segment, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
+  const [selectedEvidenceRef, setSelectedEvidenceRef] = useState('');
 
   const parseReservationIdFromQr = (str) => {
     if (!str || typeof str !== 'string') return null;
@@ -26,12 +27,25 @@ function UploadTicketModal({ segment, onClose, onSuccess }) {
     return null;
   };
 
-  const submitWithReservationId = async (reservationId) => {
+  const parseReservationIdFromFilename = (name) => {
+    if (!name) return null;
+    const m = String(name).match(/(\d{1,12})/);
+    if (!m) return null;
+    const n = parseInt(m[1], 10);
+    return Number.isNaN(n) || n <= 0 ? null : n;
+  };
+
+  const submitWithReservationId = async (reservationId, evidenceReference) => {
     if (!segment?.id || !reservationId) return;
     setError(null);
     setLoading(true);
     try {
-      await api.uploadTicketForSegment(segment.id, reservationId);
+      await api.uploadTicketForSegment(
+        segment.id,
+        reservationId,
+        'Ticket proof uploaded by passenger',
+        evidenceReference || selectedEvidenceRef || null
+      );
       onSuccess?.();
       onClose?.();
     } catch (e) {
@@ -53,8 +67,22 @@ function UploadTicketModal({ segment, onClose, onSuccess }) {
   const handleFileChange = (e) => {
     const file = e.target?.files?.[0];
     if (!file) return;
+    setSelectedEvidenceRef(file.name || '');
     setError(null);
     setLoading(true);
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (isPdf) {
+      const fromName = parseReservationIdFromFilename(file.name);
+      if (fromName == null) {
+        setError('PDF selected. Enter reservation ID manually, then submit. Tip: include ID in filename (e.g. ticket-12345.pdf).');
+        setLoading(false);
+        e.target.value = '';
+        return;
+      }
+      submitWithReservationId(fromName, file.name);
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
@@ -82,7 +110,7 @@ function UploadTicketModal({ segment, onClose, onSuccess }) {
           setLoading(false);
           return;
         }
-        submitWithReservationId(id);
+        submitWithReservationId(id, file.name);
         e.target.value = '';
       };
       img.onerror = () => {
@@ -117,11 +145,11 @@ function UploadTicketModal({ segment, onClose, onSuccess }) {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Or upload QR image</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Or upload QR image / PDF ticket</label>
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.pdf,application/pdf"
               onChange={handleFileChange}
               className="block w-full text-sm text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-blue-700"
             />

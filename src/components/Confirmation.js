@@ -1,8 +1,16 @@
 import React from 'react';
 
+function journeyLabel(source) {
+  const r = source?.[0];
+  const from = r?.journeyFromStation || r?.trip?.fromStation;
+  const to = r?.journeyToStation || r?.trip?.toStation;
+  return from && to ? `${from} → ${to}` : (r?.trip ? `${r.trip.fromStation} → ${r.trip.toStation}` : '');
+}
+
 function Confirmation({ reservations, confirmed, loading, onConfirm, onStartOver }) {
   const source = confirmed?.length ? confirmed : reservations;
   const trip = source?.[0]?.trip;
+  const journey = journeyLabel(source);
   const seats = source?.flatMap((r) => r.seats || []).map((s) => s.seatNumber).join(', ') || '';
   const total = source?.reduce((sum, r) => sum + Number(r.amount || 0), 0) || 0;
   const allPaid = reservations?.every((r) => r.status === 'PAID');
@@ -14,7 +22,10 @@ function Confirmation({ reservations, confirmed, loading, onConfirm, onStartOver
         <div className="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm">
           <h2 className="text-xl font-semibold text-black">Booking confirmed</h2>
           <p className="mt-2 text-gray-900">
-            {trip?.fromStation} → {trip?.toStation}
+            {journey || (trip ? `${trip.fromStation} → ${trip.toStation}` : '')}
+          </p>
+          <p className="mt-1 text-sm text-gray-600">
+            Your ticket and receipts show this exact journey segment. Travel checks use the same record.
           </p>
           <p className="text-gray-600">Seats: {seats}</p>
           <p className="mt-2 text-lg font-semibold text-black">Total paid: £{total.toFixed(2)}</p>
@@ -39,7 +50,10 @@ function Confirmation({ reservations, confirmed, loading, onConfirm, onStartOver
 
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <p className="text-gray-900 font-medium">
-          {trip?.fromStation} → {trip?.toStation}
+          {journey || (trip ? `${trip.fromStation} → ${trip.toStation}` : '')}
+        </p>
+        <p className="mt-1 text-sm text-gray-600">
+          This segment is what we store as your entitlement for verification on the network.
         </p>
         <p className="text-gray-600">Seats: {seats}</p>
         <p className="mt-2 text-lg font-semibold text-black">Total: £{total.toFixed(2)} (paid)</p>

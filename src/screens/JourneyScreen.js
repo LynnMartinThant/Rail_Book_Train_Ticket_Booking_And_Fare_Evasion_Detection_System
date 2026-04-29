@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import TicketStatusBadge from '../components/TicketStatusBadge';
 import UploadTicketModal from '../components/UploadTicketModal';
 
@@ -10,17 +10,59 @@ function formatDate(iso) {
 
 function fareStatusToTicketStatus(fareStatus) {
   if (fareStatus === 'PAID') return 'valid';
+  if (fareStatus === 'PENDING_REVIEW') return 'pending_review';
   if (fareStatus === 'PENDING_RESOLUTION') return 'pending_resolution';
   if (fareStatus === 'UNPAID_TRAVEL' || fareStatus === 'UNDERPAID') return 'no_ticket';
   return 'pending';
 }
 
+/** Turn backend explanation JSON into short labelled lines for passengers. */
+function explanationSummaryLines(explanation) {
+  if (!explanation || typeof explanation !== 'object') return [];
+  const lines = [];
+  if (explanation.pipelineSource) lines.push({ label: 'Checked by', value: String(explanation.pipelineSource) });
+  if (explanation.policyName) lines.push({ label: 'Policy', value: String(explanation.policyName) });
+  const fd = explanation.fareDecision;
+  if (fd && typeof fd === 'object') {
+    if (fd.policyName) lines.push({ label: 'Fare policy', value: String(fd.policyName) });
+    if (fd.ruleCode) lines.push({ label: 'Rule', value: String(fd.ruleCode) });
+    if (fd.decisionReason) lines.push({ label: 'Decision', value: String(fd.decisionReason) });
+  }
+  if (explanation.decisionReason && !lines.some((l) => l.label === 'Decision')) {
+    lines.push({ label: 'Decision', value: String(explanation.decisionReason) });
+  }
+  if (explanation.confidenceScore != null) {
+    lines.push({ label: 'Confidence score', value: String(explanation.confidenceScore) });
+  }
+  if (explanation.reviewRequired != null) {
+    lines.push({ label: 'Manual review', value: explanation.reviewRequired ? 'May be required' : 'Not required' });
+  }
+  const recon = explanation.reconstructionConfidence;
+  if (recon && typeof recon === 'object') {
+    if (recon.decisionSummary) lines.push({ label: 'Journey detection', value: String(recon.decisionSummary) });
+    else if (recon.policyName) lines.push({ label: 'Journey policy', value: String(recon.policyName) });
+  }
+  const dj = explanation.detectedJourney;
+  if (dj && typeof dj === 'object' && (dj.originStation || dj.destinationStation)) {
+    lines.push({
+      label: 'Detected route',
+      value: `${dj.originStation || '?'} → ${dj.destinationStation || '?'}`,
+    });
+  }
+  return lines;
+}
+
 function JourneyScreen({ segments, onBuyTicket, onRefreshSegments }) {
   const [segmentToUpload, setSegmentToUpload] = useState(null);
+  const [explainOpen, setExplainOpen] = useState(false);
   const currentOrLatest = segments && segments[0];
-  const hasUnpaid = segments && segments.some((s) => s.fareStatus === 'UNPAID_TRAVEL' || s.fareStatus === 'UNDERPAID' || s.fareStatus === 'PENDING_RESOLUTION');
-  const unpaidSegment = segments && segments.find((s) => s.fareStatus === 'PENDING_RESOLUTION' || s.fareStatus === 'UNPAID_TRAVEL' || s.fareStatus === 'UNDERPAID');
+  useEffect(() => {
+    setExplainOpen(false);
+  }, [currentOrLatest?.id]);
+  const hasUnpaid = segments && segments.some((s) => s.fareStatus === 'UNPAID_TRAVEL' || s.fareStatus === 'UNDERPAID' || s.fareStatus === 'PENDING_RESOLUTION' || s.fareStatus === 'PENDING_REVIEW');
+  const unpaidSegment = segments && segments.find((s) => s.fareStatus === 'PENDING_RESOLUTION' || s.fareStatus === 'UNPAID_TRAVEL' || s.fareStatus === 'UNDERPAID' || s.fareStatus === 'PENDING_REVIEW');
   const isPendingResolution = unpaidSegment && unpaidSegment.fareStatus === 'PENDING_RESOLUTION';
+  const isPendingReview = unpaidSegment && unpaidSegment.fareStatus === 'PENDING_REVIEW';
 
   return (
     <div className="space-y-6 pb-24">
@@ -34,10 +76,12 @@ function JourneyScreen({ segments, onBuyTicket, onRefreshSegments }) {
       {hasUnpaid && (
         <div className="rounded-xl border-2 border-red-300 bg-red-50 p-4">
           <p className="font-semibold text-red-900">
-            {isPendingResolution ? 'Unauthorised travel detected' : 'No ticket detected for this journey.'}
+            {isPendingReview ? 'Journey flagged for review' : (isPendingResolution ? 'Unauthorised travel detected' : 'No ticket detected for this journey.')}
           </p>
           <p className="text-sm text-red-800 mt-1">
-            {isPendingResolution
+            {isPendingReview
+              ? `We detected a journey from ${unpaidSegment.originStation} to ${unpaidSegment.destinationStation}, but confidence is not high enough for automatic enforcement. This has been flagged for review.`
+              : isPendingResolution
               ? `We detected that you travelled from ${unpaidSegment.originStation} to ${unpaidSegment.destinationStation} without a valid ticket. Please resolve this within 1 hour to avoid a penalty.`
               : 'Purchase a valid ticket to avoid a penalty, or upload your ticket if you had one.'}
           </p>
@@ -72,6 +116,33 @@ function JourneyScreen({ segments, onBuyTicket, onRefreshSegments }) {
             <span className="text-sm text-slate-600">Ticket verification</span>
             <TicketStatusBadge status={fareStatusToTicketStatus(currentOrLatest.fareStatus)} />
           </div>
+          {explanationSummaryLines(currentOrLatest.explanation).length > 0 && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50/80">
+              <button
+                type="button"
+                onClick={() => setExplainOpen((o) => !o)}
+                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium text-slate-800"
+              >
+                <span>How we decided this</span>
+                <span className="text-slate-500">{explainOpen ? '▼' : '▶'}</span>
+              </button>
+              {explainOpen && (
+                <div className="border-t border-slate-200 px-3 py-2 space-y-2 text-sm text-slate-700">
+                  <p className="text-xs text-slate-500">
+                    Your ticket was compared to the journey we detected from station signals. This summary comes from the same structured record our team uses for disputes.
+                  </p>
+                  <ul className="space-y-1.5">
+                    {explanationSummaryLines(currentOrLatest.explanation).map((row) => (
+                      <li key={row.label}>
+                        <span className="text-slate-500">{row.label}: </span>
+                        <span className="text-slate-900">{row.value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
           {(currentOrLatest.fareStatus === 'PENDING_RESOLUTION' && currentOrLatest.resolutionDeadline) && (
             <div className="rounded-lg bg-orange-50 border border-orange-200 p-3">
               <p className="text-sm font-medium text-orange-900">Resolve by: {formatDate(currentOrLatest.resolutionDeadline)}</p>

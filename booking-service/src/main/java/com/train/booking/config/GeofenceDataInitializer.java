@@ -43,8 +43,8 @@ public class GeofenceDataInitializer implements CommandLineRunner {
         put(all, "Wombwell", "Wombwell", "2B", 53.5210, -1.4040);
         put(all, "Elsecar", "Elsecar", "1A", 53.4989, -1.4271);
         put(all, "Chapeltown", "Chapeltown", "1B", 53.4650, -1.4720);
-        put(all, "Meadowhall Interchange", "Meadowhall Interchange", "3A", 53.4170, -1.4130);
-        put(all, "Sheffield", "Sheffield railway station", "3B", 53.3780, -1.4620);
+        put(all, "Meadowhall Interchange", "Meadowhall Interchange", null, 53.4167, -1.4141);
+        put(all, "Sheffield", "Sheffield railway station", null, 53.37823, -1.46210);
         // Calder Valley
         put(all, "Bramley", "Bramley", "1A", 53.7610, -1.6370);
         put(all, "New Pudsey", "New Pudsey", "2A", 53.7928, -1.6804);
@@ -91,7 +91,7 @@ public class GeofenceDataInitializer implements CommandLineRunner {
         int added = 0;
         for (Map.Entry<String, Object[]> e : all.entrySet()) {
             String stationName = e.getKey();
-            if (geofenceRepository.findByStationName(stationName).isPresent()) continue;
+            if (!geofenceRepository.findAllByStationName(stationName).isEmpty()) continue;
             Object[] v = e.getValue();
             String displayName = (String) v[0];
             String platform = (String) v[1];
@@ -107,8 +107,52 @@ public class GeofenceDataInitializer implements CommandLineRunner {
                 .build();
             geofenceRepository.save(g);
             added++;
+
+            if ("Sheffield".equals(stationName)) {
+                Object[][] platforms = {
+                    { "1", 53.37833, -1.46190 },
+                    { "2", 53.37825, -1.46195 },
+                    { "3", 53.37815, -1.46205 },
+                    { "4", 53.37810, -1.46210 },
+                    { "5", 53.37805, -1.46218 },
+                    { "6", 53.37800, -1.46225 },
+                    { "7", 53.37795, -1.46232 },
+                    { "8", 53.37790, -1.46240 },
+                };
+                for (Object[] p : platforms) {
+                    Geofence pf = Geofence.builder()
+                        .name("Sheffield Platform " + p[0])
+                        .stationName("Sheffield")
+                        .platform((String) p[0])
+                        .latitude((Double) p[1])
+                        .longitude((Double) p[2])
+                        .radiusMeters(20)
+                        .build();
+                    geofenceRepository.save(pf);
+                    added++;
+                }
+            } else if ("Meadowhall Interchange".equals(stationName)) {
+                Object[][] platforms = {
+                    { "1", 53.41685, -1.41430 },
+                    { "2", 53.41680, -1.41420 },
+                    { "3", 53.41672, -1.41410 },
+                    { "4", 53.41665, -1.41400 },
+                };
+                for (Object[] p : platforms) {
+                    Geofence pf = Geofence.builder()
+                        .name("Meadowhall Platform " + p[0])
+                        .stationName("Meadowhall Interchange")
+                        .platform((String) p[0])
+                        .latitude((Double) p[1])
+                        .longitude((Double) p[2])
+                        .radiusMeters(25)
+                        .build();
+                    geofenceRepository.save(pf);
+                    added++;
+                }
+            }
         }
-        log.info("Geofence init done: {} existing, {} added (total {} stations)", geofenceRepository.count() - added, added, geofenceRepository.count());
+        log.info("Geofence init done: {} added (total {} geofences)", added, geofenceRepository.count());
     }
 
     private static void put(Map<String, Object[]> map, String stationName, String displayName, String platform, double lat, double lon) {

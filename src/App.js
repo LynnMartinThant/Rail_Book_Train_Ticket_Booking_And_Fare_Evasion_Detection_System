@@ -11,11 +11,11 @@ import Landing from './components/Landing';
 import TabBar from './components/TabBar';
 import HomeScreen from './screens/HomeScreen';
 import JourneyScreen from './screens/JourneyScreen';
-import TicketsScreen from './screens/TicketsScreen';
+import ProcessScreen from './screens/ProcessScreen';
 import ProfileScreen from './screens/ProfileScreen';
 const STEPS = { TRIPS: 'trips', SEATS: 'seats', PAYMENT: 'payment', CONFIRM: 'confirm' };
 const VIEWS = { LANDING: 'landing', LOGIN: 'login', REGISTER: 'register' };
-const TABS = { HOME: 'home', JOURNEY: 'journey', TICKETS: 'tickets', PROFILE: 'profile' };
+const TABS = { HOME: 'home', JOURNEY: 'journey', PROCESS: 'process', PROFILE: 'profile' };
 
 function App() {
   const [user, setUser] = useState(api.getStoredUser());
@@ -87,6 +87,7 @@ function App() {
     }
   }, [user?.userId]);
 
+
   const loadCurrentStationAndDepartures = useCallback(async () => {
     if (!user?.userId) return;
     try {
@@ -108,12 +109,13 @@ function App() {
     if (!user?.userId || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        api.reportLocation(pos.coords.latitude, pos.coords.longitude)
+        const accuracy = pos.coords.accuracy != null && Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : undefined;
+        api.reportLocation(pos.coords.latitude, pos.coords.longitude, accuracy)
           .then(() => loadCurrentStationAndDepartures())
           .catch(() => loadCurrentStationAndDepartures());
       },
       () => {},
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }, [user?.userId, loadCurrentStationAndDepartures]);
 
@@ -151,15 +153,20 @@ function App() {
     setError(null);
     setLoading(true);
     try {
-      const data = await api.reserve(selectedTrip.id, seatIds);
+      const data = await api.reserve(selectedTrip.id, seatIds, fromStation, toStation);
       setReservations(Array.isArray(data) ? data : [data]);
       setStep(STEPS.PAYMENT);
     } catch (e) {
-      setError(e.message);
+      const msg = e?.message || '';
+      if (msg.includes('already booked') || msg.includes('already reserved')) {
+        setError('Seat unavailable. Double booking prevented — another user has just taken this seat. Please choose another seat.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
-  }, [selectedTrip]);
+  }, [selectedTrip, fromStation, toStation]);
 
   const handlePayment = useCallback(async (paymentRef) => {
     setError(null);
@@ -319,10 +326,11 @@ function App() {
     const report = () => {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          api.reportLocation(pos.coords.latitude, pos.coords.longitude).catch(() => {});
+          const accuracy = pos.coords.accuracy != null && Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : undefined;
+          api.reportLocation(pos.coords.latitude, pos.coords.longitude, accuracy).catch(() => {});
         },
         () => {},
-        { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
       );
     };
     report();
@@ -432,14 +440,31 @@ function App() {
 
       {showBookingFlow ? (
         <div className="min-h-screen bg-white">
-          {step !== STEPS.TRIPS && (
-            <header className="border-b border-slate-200 bg-white px-4 py-3 flex items-center justify-between">
-              <button type="button" onClick={() => { setShowBookingFlow(false); releaseReservations(); setStep(STEPS.TRIPS); setSelectedTrip(null); setSeats([]); setReservations([]); loadBookings(); loadSegments(); }} className="text-slate-600 hover:text-slate-900">Cancel</button>
-              <h1 className="text-lg font-semibold text-slate-900">Buy ticket</h1>
-              <span className="w-14" />
+          {step !== STEPS.SEATS && (
+            <header className="border-b border-slate-200 bg-white px-4 py-3">
+              <div className="mx-auto max-w-4xl flex items-center justify-between">
+                <button type="button" onClick={() => { setShowBookingFlow(false); releaseReservations(); setStep(STEPS.TRIPS); setSelectedTrip(null); setSeats([]); setReservations([]); loadBookings(); loadSegments(); }} className="text-slate-600 hover:text-slate-900 text-sm font-medium">Cancel</button>
+                <h1 className="text-lg font-semibold text-slate-900">Buy ticket</h1>
+                <span className="w-14" />
+              </div>
+              <div className="mx-auto max-w-4xl mt-3 flex items-center justify-center gap-1 sm:gap-2 text-xs flex-wrap">
+                {['1. Search', '2. Select seat', '3. Reserve', '4. Pay', '5. Ticket'].map((label, i) => {
+                  const currentIdx = { [STEPS.TRIPS]: 0, [STEPS.SEATS]: 1, [STEPS.PAYMENT]: 3, [STEPS.CONFIRM]: 4 }[step] ?? 0;
+                  const current = i === currentIdx;
+                  const done = i < currentIdx;
+                  return (
+                    <span
+                      key={i}
+                      className={`px-2 py-1 rounded ${current ? 'bg-indigo-100 text-indigo-800 font-medium' : done ? 'bg-slate-100 text-slate-600' : 'text-slate-400'}`}
+                    >
+                      {label}
+                    </span>
+                  );
+                })}
+              </div>
             </header>
           )}
-          <main className="mx-auto max-w-4xl min-w-0 px-4 py-6">
+          <main className={step === STEPS.SEATS ? 'min-w-0' : 'mx-auto max-w-4xl min-w-0 px-4 py-6'}>
             {error && (
               <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-red-700 text-sm" role="alert">{error}</div>
             )}
@@ -504,11 +529,32 @@ function App() {
               <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-red-700 text-sm" role="alert">{error}</div>
             )}
             {activeTab === TABS.HOME && (
-              <HomeScreen user={user} alerts={alerts} pendingStationEntryActions={pendingStationEntryActions} bookings={bookings} segments={segments} currentStation={currentStation} departures={departures} onBuyTicket={openBooking} onViewJourney={() => setActiveTab(TABS.JOURNEY)} onDismissAlert={handleDismissAlert} onRefreshStation={loadCurrentStationAndDepartures} onEnableLocation={handleEnableLocation} />
+              <HomeScreen
+                user={user}
+                alerts={alerts}
+                pendingStationEntryActions={pendingStationEntryActions}
+                bookings={bookings}
+                segments={segments}
+                currentStation={currentStation}
+                departures={departures}
+                onBuyTicket={openBooking}
+                onViewJourney={() => setActiveTab(TABS.JOURNEY)}
+                onDismissAlert={handleDismissAlert}
+                onRefreshStation={loadCurrentStationAndDepartures}
+                onEnableLocation={handleEnableLocation}
+              />
             )}
             {activeTab === TABS.JOURNEY && <JourneyScreen segments={segments} onBuyTicket={openBooking} onRefreshSegments={loadSegments} />}
-            {activeTab === TABS.TICKETS && <TicketsScreen bookings={bookings} bookingsLoading={bookingsLoading} onBuyTicket={openBooking} />}
-            {activeTab === TABS.PROFILE && <ProfileScreen user={user} onLogout={handleLogout} />}
+            {activeTab === TABS.PROCESS && <ProcessScreen />}
+            {activeTab === TABS.PROFILE && (
+              <ProfileScreen
+                user={user}
+                onLogout={handleLogout}
+                bookings={bookings}
+                bookingsLoading={bookingsLoading}
+                onBuyTicket={openBooking}
+              />
+            )}
           </main>
 
           <TabBar activeTab={activeTab} onSelect={setActiveTab} />

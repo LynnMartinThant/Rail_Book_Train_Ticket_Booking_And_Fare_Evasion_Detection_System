@@ -21,4 +21,7 @@ public class SimulateJourneyRequest {
     /** ISO-8601 instant when user enters destination platform (e.g. 2026-03-08T19:50:00Z). Travel duration = enterDestinationAt - enterOriginAt. */
     @NotNull(message = "enterDestinationAt is required")
     private String enterDestinationAt;
+
+    /** Optional GPS accuracy in metres (e.g. 10). Used for journey reconstruction confidence score. */
+    private Double accuracyMeters;
 }

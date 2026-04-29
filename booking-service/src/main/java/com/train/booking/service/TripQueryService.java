@@ -30,27 +30,27 @@ public class TripQueryService {
         return tripRepository.findAllWithTrain();
     }
 
-    /** List trips for segment fromStation → toStation. Returns trips that serve that segment (any station pair on a line). */
-    public List<Trip> listTrips(String fromStation, String toStation) {
+   
+    public List<Trip> listTrips(String fromStation, String toStation) { // return all the trips
         if (fromStation != null && !fromStation.isBlank() && toStation != null && !toStation.isBlank()) {
             String from = fromStation.trim();
-            String to = toStation.trim();
-            List<Trip> exact = tripRepository.findByFromStationAndToStation(from, to);
+            String to = toStation.trim(); 
+            List<Trip> exact = tripRepository.findByFromStationAndToStation(from, to); // find if match 
             if (!exact.isEmpty()) return exact;
-            // Segment lookup: find routes that serve from → to, then return trips for those route endpoints
-            List<RouteConfig.EndpointPair> pairs = routeConfig.endpointPairsForSegment(from, to);
-            Set<Trip> merged = new LinkedHashSet<>();
+            
+            List<RouteConfig.EndpointPair> pairs = routeConfig.endpointPairsForSegment(from, to); 
+            Set<Trip> merged = new LinkedHashSet<>(); // combine all the trip
             for (RouteConfig.EndpointPair p : pairs) {
                 merged.addAll(tripRepository.findByFromStationAndToStation(p.from(), p.to()));
             }
             return merged.stream().sorted(Comparator.comparing(Trip::getDepartureTime)).toList();
         }
-        // No filter: default to Hallam Line (Leeds → Sheffield); fallback to all if none exist yet
+      
         List<Trip> hallam = tripRepository.findByFromStationAndToStation("Leeds", "Sheffield");
         return hallam.isEmpty() ? tripRepository.findAllWithTrain() : hallam;
     }
 
-    /** Departures from a given station (departureTime >= now), ordered by time. Used for dashboard. */
+    
     public List<Trip> listDeparturesFromStation(String stationName) {
         return tripRepository.findByFromStationAndDepartureTimeAfterOrderByDepartureTimeAsc(stationName, Instant.now());
     }
@@ -59,10 +59,7 @@ public class TripQueryService {
         return tripSeatRepository.findByTripId(tripId);
     }
 
-    /**
-     * Returns seat IDs that are currently reserved/paid/confirmed (not expired).
-     */
-    public List<Long> getBookedSeatIdsForTrip(Long tripId) {
+    public List<Long> getBookedSeatIdsForTrip(Long tripId) { // get all the bookes seats for trip
         List<TripSeat> seats = tripSeatRepository.findByTripId(tripId);
         Instant now = Instant.now();
         return seats.stream()
@@ -72,6 +69,6 @@ public class TripQueryService {
                 now
             ).isPresent())
             .map(ts -> ts.getSeat().getId())
-            .collect(Collectors.toList());
+            .collect(Collectors.toList()); // return all the booked seat
     }
 }

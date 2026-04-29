@@ -51,6 +51,6 @@ public class LocationEventStream {
     private void publishInProcess(GeofenceEventMessage message) {
         applicationEventPublisher.publishEvent(new GeofenceEventRecordedEvent(this,
             message.getUserId(), message.getGeofenceId(), message.getEventType(),
-            message.getStationName(), message.getCreatedAt()));
+            message.getStationName(), message.getCreatedAt(), message.getAccuracyMeters(), message.getCorrelationId()));
     }
 }

@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Core booking workflow: Reserve → Payment → Confirm.
@@ -29,14 +30,13 @@ public class BookingService {
     private final TripRepository tripRepository;
     private final PricingService pricingService;
     private final BookingPolicyService policyService;
-    private final PaymentIdService paymentIdService;
 
     /**
      * Reserve seat(s). Locks TripSeat rows to prevent double booking.
      * @return Created reservations (one per seat)
      */
     @Transactional
-    public List<Reservation> reserve(String userId, Long tripId, List<Long> seatIds) {
+    public List<Reservation> reserve(String userId, Long tripId, List<Long> seatIds, String journeyFromStation, String journeyToStation) {
         if (seatIds == null || seatIds.isEmpty()) {
             throw new IllegalArgumentException("At least one seat is required");
         }
@@ -76,6 +76,8 @@ public class BookingService {
                 reservation.setAmount(amount);
                 reservation.setExpiresAt(expiresAt);
                 reservation.setPaymentReference(null);
+                reservation.setJourneyFromStation(journeyFromStation);
+                reservation.setJourneyToStation(journeyToStation);
                 reservation.setUpdatedAt(now);
                 created.add(reservationRepository.save(reservation));
             } else {
@@ -85,6 +87,8 @@ public class BookingService {
                     .status(ReservationStatus.RESERVED)
                     .amount(amount)
                     .expiresAt(expiresAt)
+                    .journeyFromStation(journeyFromStation)
+                    .journeyToStation(journeyToStation)
                     .createdAt(now)
                     .updatedAt(now)
                     .build();
@@ -101,24 +105,24 @@ public class BookingService {
         return false;
     }
 
-    /**
-     * Process payment for a reservation. Auto-generates payment ID (dd/mm/yy-NNNN) if not provided.
-     */
+
+
+    
     @Transactional
-    public Reservation payment(Long reservationId, String userId, String paymentReference) {
+    public Reservation payment(Long reservationId, String userId, String paymentReference) { //  Auto-generates payment ID (dd/mm/yy-NNNN) if not provided.
         Reservation r = reservationRepository.findByIdAndUserIdWithDetails(reservationId, userId)
             .orElseThrow(() -> new IllegalArgumentException("Reservation not found"));
         policyService.assertCanPay(r);
-        String ref = Optional.ofNullable(paymentReference).filter(s -> !s.isBlank()).orElseGet(paymentIdService::generateNextId);
+        String ref = Optional.ofNullable(paymentReference)
+            .filter(s -> !s.isBlank())
+            .orElseGet(() -> "pay-" + UUID.randomUUID());
         r.setStatus(ReservationStatus.PAID);
-        r.setPaymentReference(ref);
+        r.setPaymentReference(ref); // ref
         r.setUpdatedAt(Instant.now());
         return reservationRepository.save(r);
     }
 
-    /**
-     * Confirm booking after payment.
-     */
+   // confirm
     @Transactional
     public Reservation confirm(Long reservationId, String userId) {
         Reservation r = reservationRepository.findByIdAndUserIdWithDetails(reservationId, userId)
@@ -129,10 +133,7 @@ public class BookingService {
         return reservationRepository.save(r);
     }
 
-    /**
-     * Cancel (release) a reservation. Seat becomes available again for rebooking.
-     * Allowed for RESERVED, PAID, and CONFIRMED (so user can release and rebook the same seat).
-     */
+// cancel
     @Transactional
     public void cancel(Long reservationId, String userId) {
         Reservation r = reservationRepository.findByIdAndUserIdWithDetails(reservationId, userId)

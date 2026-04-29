@@ -99,7 +99,7 @@ function MyBookings({ bookings, loading, onBack, onRefundRequested }) {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="font-medium text-gray-900">
-                    {r.trip?.fromStation} → {r.trip?.toStation}
+                    {(r.journeyFromStation && r.journeyToStation) ? `${r.journeyFromStation} → ${r.journeyToStation}` : (r.trip ? `${r.trip.fromStation} → ${r.trip.toStation}` : '')}
                   </p>
                   <p className="text-sm text-gray-600">
                     {r.trip?.trainName} · {formatDate(r.trip?.departureTime)}

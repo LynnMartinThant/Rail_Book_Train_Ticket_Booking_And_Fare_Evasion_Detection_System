@@ -14,7 +14,8 @@ import java.time.Instant;
 @Table(name = "trip_segments", indexes = {
     @Index(name = "idx_trip_segment_passenger", columnList = "passenger_id"),
     @Index(name = "idx_trip_segment_idempotency", columnList = "idempotency_key", unique = true),
-    @Index(name = "idx_trip_segment_created", columnList = "created_at")
+    @Index(name = "idx_trip_segment_created", columnList = "created_at"),
+    @Index(name = "idx_trip_segment_reservation", columnList = "reservation_id")
 })
 @Getter
 @Setter
@@ -71,12 +72,37 @@ public class TripSegment {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "segment_state")
+    private SegmentState segmentState;
+
     /** When PENDING_RESOLUTION: resolve (buy/upload ticket) by this time to avoid penalty. */
     @Column(name = "resolution_deadline")
     private Instant resolutionDeadline;
 
+    /** When PAID: the reservation (ticket) that covered this segment. Used for ticket-sharing detection. */
+    @Column(name = "reservation_id")
+    private Long reservationId;
+
+    /** Matched train (trip) from schedule: segment start within ±5 min of trip departure. */
+    @Column(name = "matched_trip_id")
+    private Long matchedTripId;
+
+    /** Confidence score 0–100 for journey reconstruction (GPS 25%, station 25%, train match 30%, duration 20%). Alerts only if ≥ threshold. */
+    @Column(name = "confidence_score", precision = 5, scale = 2)
+    private java.math.BigDecimal confidenceScore;
+
+    /**
+     * Structured explainability: policy names, rule codes, inputs, confidence breakdown, audit chain.
+     * JSON for admin UI and dispute review (versioned document).
+     */
+    @Lob
+    @Column(name = "explanation_json")
+    private String explanationJson;
+
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
+        if (segmentState == null) segmentState = SegmentState.DETECTED;
     }
 }

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import jsQR from 'jsqr';
 import * as api from '../api/client';
 
 /**
@@ -10,6 +11,29 @@ function StationEntryModal({ action, onClose, onRefresh, onNavigateToBooking }) 
   const [reservationIdInput, setReservationIdInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const parseReservationIdFromQr = (str) => {
+    if (!str || typeof str !== 'string') return null;
+    const trimmed = str.trim();
+    const num = parseInt(trimmed, 10);
+    if (!Number.isNaN(num) && num > 0) return num;
+    try {
+      const obj = JSON.parse(trimmed);
+      const id = obj.reservationId ?? obj.reservation_id ?? obj.id;
+      const n = typeof id === 'number' ? id : parseInt(String(id), 10);
+      if (!Number.isNaN(n) && n > 0) return n;
+    } catch (_) {}
+    return null;
+  };
+
+  const parseReservationIdFromFilename = (name) => {
+    if (!name) return null;
+    const m = String(name).match(/(\d{1,12})/);
+    if (!m) return null;
+    const n = parseInt(m[1], 10);
+    return Number.isNaN(n) || n <= 0 ? null : n;
+  };
 
   const handleChoice = async (choice) => {
     setError(null);
@@ -49,6 +73,64 @@ function StationEntryModal({ action, onClose, onRefresh, onNavigateToBooking }) 
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+    setError(null);
+    setLoading(true);
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (isPdf) {
+      const fromName = parseReservationIdFromFilename(file.name);
+      if (fromName == null) {
+        setError('PDF selected. Enter reservation ID manually (or include it in filename, e.g. ticket-12345.pdf).');
+        setLoading(false);
+      } else {
+        setReservationIdInput(String(fromName));
+        setLoading(false);
+      }
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setError('Could not read image.');
+          setLoading(false);
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (!code || !code.data) {
+          setError('No QR code found in the image.');
+          setLoading(false);
+          return;
+        }
+        const id = parseReservationIdFromQr(code.data);
+        if (id == null) {
+          setError('QR code does not contain a valid reservation ID.');
+          setLoading(false);
+          return;
+        }
+        setReservationIdInput(String(id));
+        setLoading(false);
+        e.target.value = '';
+      };
+      img.onerror = () => {
+        setError('Could not load image.');
+        setLoading(false);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -91,8 +173,15 @@ function StationEntryModal({ action, onClose, onRefresh, onNavigateToBooking }) 
         {step === 'scan' && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600">
-              Scan the QR code on your ticket, or enter the reservation ID if you have it.
+              Scan the QR code on your ticket, upload an image/PDF, or enter reservation ID manually.
             </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf,application/pdf"
+              onChange={handleFileChange}
+              className="w-full text-sm text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-blue-700"
+            />
             <input
               type="text"
               inputMode="numeric"

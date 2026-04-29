@@ -11,4 +11,6 @@ public interface UserLocationRepository extends JpaRepository<UserLocation, Long
     Optional<UserLocation> findByUserId(String userId);
 
     List<UserLocation> findAllByOrderByUpdatedAtDesc();
+
+    void deleteByUserIdIn(List<String> userIds);
 }
