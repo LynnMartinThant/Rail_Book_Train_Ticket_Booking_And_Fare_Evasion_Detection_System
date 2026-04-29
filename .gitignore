@@ -21,3 +21,10 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# backend build/runtime artifacts
+booking-service/target/
+booking-service/data/*.db
+booking-service/data/*.mv.db
+booking-service/data/*.trace.db
+booking-service/data/*.lock.db
